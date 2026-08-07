@@ -1,0 +1,37 @@
+switches:
+  tf_sw2:
+    arch: tf1
+    program: 
+      name: bigswitch_ecn
+      path: src/single/bigswitch_ecn/dp/bigswitch_ecn.p4
+      cp_script_path: src/single/bigswitch_ecn/cp/init.py
+    DCQCN_K_MIN: 1280
+    DCQCN_K_MAX: 5120
+    DCQCN_P_MAX: 0.2
+    SEED_RANGE_MAX: 256
+    MCAST_GRP_ID: 1
+    RID: 1
+    ingress_buffer_cells: 50195
+    egress_buffer_cells: 50195
+    skid_max_cells: 52
+    guaranteed_cells: 20
+    PFC_ENABLE: true
+    ingress_dynamic_baf: 80%
+    egress_dynamic_baf: 80%
+    ports:
+      1/0: {speed: 100G, fec: none, an: default}
+      2/0: {speed: 100G, fec: none, an: default}
+      3/0: {speed: 100G, fec: none, an: default}
+      4/0: {speed: 100G, fec: none, an: default}
+      5/0: {speed: 100G, fec: none, an: default}
+      6/0: {speed: 100G, fec: none, an: default}
+      7/0: {speed: 100G, fec: none, an: default}
+      8/0: {speed: 100G, fec: none, an: default}
+      9/0: {speed: 100G, fec: none, an: default}
+      10/0: {speed: 100G, fec: none, an: default}
+      11/0: {speed: 100G, fec: none, an: default}
+      12/0: {speed: 100G, fec: none, an: default}
+      13/0: {speed: 100G, fec: none, an: default}
+      14/0: {speed: 100G, fec: none, an: default}
+      15/0: {speed: 100G, fec: none, an: default}
+      16/0: {speed: 100G, fec: none, an: default}

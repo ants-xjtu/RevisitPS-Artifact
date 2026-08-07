@@ -1,0 +1,12 @@
+# CLI and configuration
+click>=8.1,<9
+Jinja2>=3.1,<4
+PyYAML>=6.0,<7
+
+# Data analysis and plotting
+numpy>=1.24,<3
+pandas>=2.0,<3
+matplotlib>=3.7,<4
+
+# bfrt_grpc is provided by the Tofino SDE environment and is not a PyPI
+# dependency.

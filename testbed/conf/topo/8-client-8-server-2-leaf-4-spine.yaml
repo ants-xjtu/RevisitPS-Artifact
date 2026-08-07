@@ -1,0 +1,133 @@
+switch_nodes:
+  sw1:
+    type: switch
+    loc: leaf
+    connect: sender
+    hostname: tf_sw2
+  sw2:
+    type: switch
+    loc: leaf
+    connect: receiver
+    hostname: tf_sw2
+  sw3:
+    type: switch
+    loc: spine
+    connect: switch
+    hostname: tf_sw1
+  sw4:
+    type: switch
+    loc: spine
+    connect: switch
+    hostname: tf_sw1
+  sw5:
+    type: switch
+    loc: spine
+    connect: switch
+    hostname: tf_sw1
+  sw6:
+    type: switch
+    loc: spine
+    connect: switch
+    hostname: tf_sw1
+
+links:
+  - from: sw2
+    to: 10.150.240.221
+    port_from: 3/0
+    port_to: enp10s0f0np0
+  - from: sw2
+    to: 10.150.240.222
+    port_from: 4/0
+    port_to: enp10s0f1np1
+  - from: sw2
+    to: 10.150.240.223
+    port_from: 14/0
+    port_to: enp173s0f0np0
+  - from: sw2
+    to: 10.150.240.224
+    port_from: 13/0
+    port_to: enp173s0f1np1
+  - from: sw2
+    to: 10.150.240.201
+    port_from: 7/0
+    port_to: enp153s0f0np0
+  - from: sw2
+    to: 10.150.240.202
+    port_from: 8/0
+    port_to: enp153s0f1np1
+  - from: sw2
+    to: 10.150.240.203
+    port_from: 10/0
+    port_to: enp174s0f0np0
+  - from: sw2
+    to: 10.150.240.204
+    port_from: 9/0
+    port_to: enp174s0f1np1
+  - from: sw1
+    to: 10.150.240.211
+    port_from: 5/0
+    port_to: enp10s0f0np0
+  - from: sw1
+    to: 10.150.240.212
+    port_from: 6/0
+    port_to: enp10s0f1np1
+  - from: sw1
+    to: 10.150.240.213
+    port_from: 12/0
+    port_to: enp173s0f0np0
+  - from: sw1
+    to: 10.150.240.214
+    port_from: 11/0
+    port_to: enp173s0f1np1
+  - from: sw1
+    to: 10.150.240.231
+    port_from: 1/0
+    port_to: enp10s0f0np0
+  - from: sw1
+    to: 10.150.240.232
+    port_from: 2/0
+    port_to: enp10s0f1np1
+  - from: sw1
+    to: 10.150.240.233
+    port_from: 16/0
+    port_to: enp173s0f0np0
+  - from: sw1
+    to: 10.150.240.234
+    port_from: 15/0
+    port_to: enp173s0f1np1
+  - from: sw2
+    to: sw3
+    port_from: 17/0
+    port_to: 17/0
+  - from: sw2
+    to: sw4
+    port_from: 19/0
+    port_to: 19/0
+  - from: sw2
+    to: sw5
+    port_from: 21/0
+    port_to: 21/0
+  - from: sw2
+    to: sw6
+    port_from: 23/0
+    port_to: 23/0
+  - from: sw3
+    to: sw1
+    port_from: 18/0
+    port_to: 18/0
+  - from: sw4
+    to: sw1
+    port_from: 20/0
+    port_to: 20/0
+  - from: sw5
+    to: sw1
+    port_from: 22/0
+    port_to: 22/0
+  - from: sw6
+    to: sw1
+    port_from: 24/0
+    port_to: 24/0
+
+
+
+  

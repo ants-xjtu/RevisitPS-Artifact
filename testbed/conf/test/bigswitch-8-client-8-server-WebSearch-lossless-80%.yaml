@@ -1,0 +1,67 @@
+name: bigswitch-8-client-8-server
+description: Test with bigswitch program in 8-client-8-server-bigswitch topology
+root_path: .
+log:
+  level: info
+  dir: logs/runtime
+config:
+  hosts: conf/host/8-client-8-server.yaml
+  switches: conf/switches/bigswitch_lossless.yaml
+  topo: conf/topo/8-client-8-server-bigswitch.yaml
+  connections: conf/connections/fully_connected.yaml
+applications:
+  gen_trace:
+    cdf: conf/trace/WebSearch.txt
+    load: 0.8
+    bandwidth: 90G
+    time: 180
+    local_path: trace/WebSearch-0.8-180s
+    remote_path: trace/WebSearch-0.8-180s
+  remote_rdma:
+    runtime_log: logs/runtime/bigswitch-8-client-8-server-WebSearch-lossless-80%
+    check:
+      counter_log: logs/check/bigswitch-8-client-8-server-counters
+      result: logs/check/bigswitch-8-client-8-server
+      remote_log: data
+      cmd:
+        base_port: 20000
+        config:
+          msg_size: 65535
+          qp: 1
+          t_depth: 128
+        sender: ib_write_bw -d {{mlx_device_name}} -i 1 -x {{gid}} --run_infinitely --report_gbits {{receiver_ip}} -p {{port}} -s {{msg_size}} --disable_pcie_relaxed -m 4096 -F -q {{qp}} -t {{t_depth}} -Q 1
+        receiver: ib_write_bw -d {{mlx_device_name}} -i 1 -x {{gid}} --run_infinitely --report_gbits -p {{port}} -s {{msg_size}} --disable_pcie_relaxed -m 4096 -F -q {{qp}} -t {{t_depth}} -Q 1
+        timeout: 30
+      kill_cmd: pkill -f ib_write_bw
+    test:
+      local_log: data/raw/bigswitch-8-client-8-server-WebSearch-lossless-80%
+      remote_log: data
+      remote_trace_dir: trace/WebSearch-0.8-180s
+      cmd:
+        base_port: 20000
+        config:
+          msg_size: 30000000
+          qp: 4
+          t_depth: 1000
+        sender: ~/lib/perftest/ib_write_trace -d {{mlx_device_name}} -i 1 -x {{gid}} --report_gbits {{receiver_ip}} -p {{port}} -s {{msg_size}} --disable_pcie_relaxed -m 4096 -F -q {{qp}} -t {{t_depth}} --trace {{trace}} -Q 1 --qp-timeout=14 > {{log_path}}
+        receiver: ~/lib/perftest/ib_write_trace -d {{mlx_device_name}} -i 1 -x {{gid}} --report_gbits -p {{port}} -s {{msg_size}} --disable_pcie_relaxed -m 4096 -F -q {{qp}} -t {{t_depth}} -Q 1 --qp-timeout=14 > {{log_path}}
+        timeout: 1000
+      kill_cmd: pkill -f ib_write_trace
+  remote_tofino:
+    cwd: testbed
+    grpc_listen_port: 50052
+    sync_ingore_dirs:
+      - logs/
+      - data/
+      - testbed-venv/
+      - trace/
+    cmd:
+      build: sde-env-9.9.1 --platform=accton_wedge100bf_32x --command 'p4_build.sh {{p4program_path}}'
+      deploy: sde-env-9.9.1 --platform=accton_wedge100bf_32x --command 'run_switchd.sh -p {{p4program_name}}'
+      config: sde-env-9.9.1 --platform=accton_wedge100bf_32x --python-modules=pyyaml,jinja2 --command 'export PYTHONPATH=$PYTHONPATH:utils && python3 {{cp_script_path}} --hostname {{hostname}} --topo {{topo}} --switches {{switches}} --hosts {{hosts}}'
+  analysis:
+    input_folder: data/raw/bigswitch-8-client-8-server-WebSearch-lossless-80%
+    output_folder: data/processed/bigswitch-8-client-8-server-WebSearch-lossless-80%
+  plot:
+    function: fct
+    

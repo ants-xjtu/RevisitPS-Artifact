@@ -1,0 +1,17 @@
+connections:
+  - sender: 10.150.240.231
+    receiver: 10.150.240.201
+  - sender: 10.150.240.232
+    receiver: 10.150.240.201
+  - sender: 10.150.240.233
+    receiver: 10.150.240.201
+  - sender: 10.150.240.234
+    receiver: 10.150.240.201
+  - sender: 10.150.240.211
+    receiver: 10.150.240.201
+  - sender: 10.150.240.212
+    receiver: 10.150.240.201
+  - sender: 10.150.240.213
+    receiver: 10.150.240.201
+  - sender: 10.150.240.214
+    receiver: 10.150.240.221

@@ -1,0 +1,251 @@
+hosts:
+  10.150.240.201:
+    bus_info: 0000:99:00.0
+    eth: enp153s0f0np0
+    gid: 4
+    hostname: dc20
+    mac: b8:ce:f6:31:3b:92
+    mlx_device_name: mlx5_0
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: receiver
+  10.150.240.202:
+    bus_info: 0000:99:00.1
+    eth: enp153s0f1np1
+    hostname: dc20
+    mac: b8:ce:f6:31:3b:93
+    mlx_device_name: mlx5_1
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: receiver
+  10.150.240.203:
+    bus_info: 0000:ae:00.0
+    eth: enp174s0f0np0
+    hostname: dc20
+    mac: b8:ce:f6:31:3c:76
+    mlx_device_name: mlx5_2
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: receiver
+  10.150.240.204:
+    bus_info: 0000:ae:00.1
+    eth: enp174s0f1np1
+    hostname: dc20
+    mac: b8:ce:f6:31:3c:77
+    mlx_device_name: mlx5_3
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: receiver
+  10.150.240.211:
+    bus_info: 0000:0a:00.0
+    eth: enp10s0f0np0
+    gid: 3
+    hostname: dc21
+    mac: b8:ce:f6:31:3b:c6
+    mlx_device_name: mlx5_0
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: sender
+  10.150.240.212:
+    bus_info: 0000:0a:00.1
+    eth: enp10s0f1np1
+    gid: 3
+    hostname: dc21
+    mac: b8:ce:f6:31:3b:c7
+    mlx_device_name: mlx5_1
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: sender
+  10.150.240.213:
+    bus_info: 0000:ad:00.0
+    eth: enp173s0f0np0
+    gid: 4
+    hostname: dc21
+    mac: 54:9b:24:bf:d3:a2
+    mlx_device_name: mlx5_2
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: sender
+  10.150.240.214:
+    bus_info: 0000:ad:00.1
+    eth: enp173s0f1np1
+    gid: 3
+    hostname: dc21
+    mac: 54:9b:24:bf:d3:a3
+    mlx_device_name: mlx5_3
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: sender
+  10.150.240.221:
+    bus_info: 0000:0a:00.0
+    eth: enp10s0f0np0
+    gid: 3
+    hostname: dc22
+    mac: 54:9b:24:bf:ca:06
+    mlx_device_name: mlx5_0
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: receiver
+  10.150.240.222:
+    bus_info: 0000:0a:00.1
+    eth: enp10s0f1np1
+    hostname: dc22
+    mac: 54:9b:24:bf:ca:07
+    mlx_device_name: mlx5_1
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: receiver
+  10.150.240.223:
+    bus_info: 0000:ad:00.0
+    eth: enp173s0f0np0
+    hostname: dc22
+    mac: 54:9b:24:bf:d4:4e
+    mlx_device_name: mlx5_2
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: receiver
+  10.150.240.224:
+    bus_info: 0000:ad:00.1
+    eth: enp173s0f1np1
+    hostname: dc22
+    mac: 54:9b:24:bf:d4:4f
+    mlx_device_name: mlx5_3
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: receiver
+  10.150.240.231:
+    bus_info: 0000:0a:00.0
+    eth: enp10s0f0np0
+    gid: 3
+    hostname: dc23
+    mac: b8:ce:f6:31:3b:0e
+    mlx_device_name: mlx5_0
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: sender
+  10.150.240.232:
+    bus_info: 0000:0a:00.1
+    eth: enp10s0f1np1
+    gid: 3
+    hostname: dc23
+    mac: b8:ce:f6:31:3b:0f
+    mlx_device_name: mlx5_1
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: sender
+  10.150.240.233:
+    bus_info: 0000:ad:00.0
+    eth: enp173s0f0np0
+    gid: 3
+    hostname: dc23
+    mac: b8:ce:f6:31:3e:16
+    mlx_device_name: mlx5_2
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: sender
+  10.150.240.234:
+    bus_info: 0000:ad:00.1
+    eth: enp173s0f1np1
+    gid: 3
+    hostname: dc23
+    mac: b8:ce:f6:31:3e:17
+    mlx_device_name: mlx5_3
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 0
+        selective_repeat_forced_en: 0
+    type: sender

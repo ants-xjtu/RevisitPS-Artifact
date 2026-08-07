@@ -1,0 +1,89 @@
+switches:
+  tf_sw1:
+    arch: tf1
+    program: 
+      name: basic_forward_drop
+      path: src/spine/basic_forward_drop/dp/basic_forward_drop.p4
+      cp_script_path: src/spine/basic_forward_drop/cp/init.py
+    DCQCN_K_MIN: 1280
+    DCQCN_K_MAX: 5120
+    DCQCN_P_MAX: 0.2
+    SEED_RANGE_MAX: 256
+    MCAST_GRP_ID: 1
+    RID: 1
+    ingress_buffer_cells: 250
+    egress_buffer_cells: 50195
+    skid_max_cells: 1536
+    guaranteed_cells: 20
+    PFC_ENABLE: true
+    ingress_dynamic_baf: DISABLE
+    egress_dynamic_baf: 80%
+    ports:
+      17/0: {speed: 100G, fec: none, an: default}
+      18/0: {speed: 100G, fec: none, an: default}
+      19/0: {speed: 100G, fec: none, an: default}
+      20/0: {speed: 100G, fec: none, an: default}
+      21/0: {speed: 100G, fec: none, an: default}
+      22/0: {speed: 100G, fec: none, an: default}
+      23/0: {speed: 100G, fec: none, an: default}
+      24/0: {speed: 100G, fec: none, an: default}
+      25/0: {speed: 100G, fec: none, an: default}
+      26/0: {speed: 100G, fec: none, an: default}
+      27/0: {speed: 100G, fec: none, an: default}
+      28/0: {speed: 100G, fec: none, an: default}
+      29/0: {speed: 100G, fec: none, an: default}
+      30/0: {speed: 100G, fec: none, an: default}
+      31/0: {speed: 100G, fec: none, an: default}
+      32/0: {speed: 100G, fec: none, an: default}
+  tf_sw2:
+    arch: tf1
+    program: 
+      name: rps
+      path: src/leaf/rps/dp/rps.p4
+      cp_script_path: src/leaf/rps/cp/init.py
+    DCQCN_K_MIN: 1280
+    DCQCN_K_MAX: 5120
+    DCQCN_P_MAX: 0.2
+    SEED_RANGE_MAX: 256
+    MCAST_GRP_ID: 1
+    RID: 1
+    ingress_buffer_cells: 91749
+    egress_buffer_cells: 91749
+    skid_max_cells: 65535
+    guaranteed_cells: 20
+    PFC_ENABLE: true
+    ingress_dynamic_baf: 6%
+    egress_dynamic_baf: 50%
+    ports:
+      1/0: {speed: 100G, fec: none, an: default}
+      2/0: {speed: 100G, fec: none, an: default}
+      3/0: {speed: 100G, fec: none, an: default}
+      4/0: {speed: 100G, fec: none, an: default}
+      5/0: {speed: 100G, fec: none, an: default}
+      6/0: {speed: 100G, fec: none, an: default}
+      7/0: {speed: 100G, fec: none, an: default}
+      8/0: {speed: 100G, fec: none, an: default}
+      9/0: {speed: 100G, fec: none, an: default}
+      10/0: {speed: 100G, fec: none, an: default}
+      11/0: {speed: 100G, fec: none, an: default}
+      12/0: {speed: 100G, fec: none, an: default}
+      13/0: {speed: 100G, fec: none, an: default}
+      14/0: {speed: 100G, fec: none, an: default}
+      15/0: {speed: 100G, fec: none, an: default}
+      16/0: {speed: 100G, fec: none, an: default}
+      17/0: {speed: 100G, fec: none, an: default}
+      18/0: {speed: 100G, fec: none, an: default}
+      19/0: {speed: 100G, fec: none, an: default}
+      20/0: {speed: 100G, fec: none, an: default}
+      21/0: {speed: 100G, fec: none, an: default}
+      22/0: {speed: 100G, fec: none, an: default}
+      23/0: {speed: 100G, fec: none, an: default}
+      24/0: {speed: 100G, fec: none, an: default}
+      25/0: {speed: 100G, fec: none, an: default}
+      26/0: {speed: 100G, fec: none, an: default}
+      27/0: {speed: 100G, fec: none, an: default}
+      28/0: {speed: 100G, fec: none, an: default}
+      29/0: {speed: 100G, fec: none, an: default}
+      30/0: {speed: 100G, fec: none, an: default}
+      31/0: {speed: 100G, fec: none, an: default}
+      32/0: {speed: 100G, fec: none, an: default}

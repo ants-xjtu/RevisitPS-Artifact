@@ -1,0 +1,25 @@
+hosts:
+  10.150.240.202:
+    bus_info: 0000:99:00.1
+    eth: enp153s0f1np1
+    gid: 3
+    hostname: dc20
+    mac: b8:ce:f6:31:3b:93
+    mlx_device_name: mlx5_1
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        roce_slow_restart_en: 1
+    type: sender
+  10.150.240.212:
+    bus_info: 0000:0a:00.1
+    eth: enp10s0f1np1
+    gid: 3
+    hostname: dc21
+    mac: b8:ce:f6:31:3b:c7
+    mlx_device_name: mlx5_1
+    type: receiver
+    mlxreg:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        roce_slow_restart_en: 1

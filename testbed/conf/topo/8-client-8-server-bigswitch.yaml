@@ -1,0 +1,78 @@
+switch_nodes:
+  sw1:
+    type: switch
+    loc: single
+    connect: sender
+    hostname: tf_sw2
+  sw2:
+    type: switch
+    loc: single
+    connect: receiver
+    hostname: tf_sw2
+
+
+links:
+  - from: sw1
+    to: 10.150.240.221
+    port_from: 3/0
+    port_to: enp10s0f0np0
+  - from: sw1
+    to: 10.150.240.222
+    port_from: 4/0
+    port_to: enp10s0f1np1
+  - from: sw1
+    to: 10.150.240.223
+    port_from: 14/0
+    port_to: enp173s0f0np0
+  - from: sw1
+    to: 10.150.240.224
+    port_from: 13/0
+    port_to: enp173s0f1np1
+  - from: sw2
+    to: 10.150.240.201
+    port_from: 7/0
+    port_to: enp153s0f0np0
+  - from: sw2
+    to: 10.150.240.202
+    port_from: 8/0
+    port_to: enp153s0f1np1
+  - from: sw2
+    to: 10.150.240.203
+    port_from: 10/0
+    port_to: enp174s0f0np0
+  - from: sw2
+    to: 10.150.240.204
+    port_from: 9/0
+    port_to: enp174s0f1np1
+  - from: sw2
+    to: 10.150.240.211
+    port_from: 5/0
+    port_to: enp10s0f0np0
+  - from: sw2
+    to: 10.150.240.212
+    port_from: 6/0
+    port_to: enp10s0f1np1
+  - from: sw2
+    to: 10.150.240.213
+    port_from: 12/0
+    port_to: enp173s0f0np0
+  - from: sw2
+    to: 10.150.240.214
+    port_from: 11/0
+    port_to: enp173s0f1np1
+  - from: sw1
+    to: 10.150.240.231
+    port_from: 1/0
+    port_to: enp10s0f0np0
+  - from: sw1
+    to: 10.150.240.232
+    port_from: 2/0
+    port_to: enp10s0f1np1
+  - from: sw1
+    to: 10.150.240.233
+    port_from: 16/0
+    port_to: enp173s0f0np0
+  - from: sw1
+    to: 10.150.240.234
+    port_from: 15/0
+    port_to: enp173s0f1np1
