@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+import argparse
+from plot_common import add_common_args, copy_matching, run_bazel
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Plot Figure 17 asymmetric AI collective CCT.")
+    add_common_args(parser)
+    args = parser.parse_args()
+    stage_out = args.output_dir / "fig17_asym_ai_collective_cct"
+    run_bazel("//main/plot_sample:plot_sim_ai_jct_avg_asy", [args.input_dir, "-o", stage_out, "--normalize", "--by-scenario", "--hide-recovery", "--no-conga", "--all-combos"], dry_run=args.dry_run)
+    copy_matching(stage_out, "*.pdf", args.output_dir, "fig17_asym_ai_collective_cct", dry_run=args.dry_run)
+    return 0
+if __name__ == "__main__": raise SystemExit(main())

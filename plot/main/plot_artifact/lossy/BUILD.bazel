@@ -1,0 +1,10 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+package(default_visibility = ["//visibility:public"])
+[
+    py_binary(name = name[:-3], srcs = [name, "plot_common.py"])
+    for name in [
+        "plot_fig11_lossy_dcn_p99_fct_leafspine.py",
+        "plot_fig12_lossy_dcn_p99_fct_fattree.py",
+        "plot_fig13_lossy_ai_collective_cct.py",
+    ]
+]

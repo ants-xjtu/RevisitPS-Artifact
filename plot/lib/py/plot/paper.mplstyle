@@ -1,0 +1,119 @@
+# https://matplotlib.org/users/customizing.html
+figure.figsize: 8, 6
+# figure.autolayout: True
+
+text.usetex: True
+mathtext.fontset: cm
+
+lines.linewidth: 3
+lines.markersize: 15
+lines.markeredgewidth: 3.0
+lines.dash_joinstyle: round
+lines.dash_capstyle: round
+lines.solid_joinstyle: round
+lines.solid_capstyle: round
+
+##### PATCHES (useful for plotting CDF)
+## Patches are graphical objects that fill 2D space, like polygons or
+## circles.  See
+## http://matplotlib.org/api/artist_api.html#module-matplotlib.patches
+## information on patch properties
+# patch.linewidth : 3        ## edge width in points.
+
+grid.color: 808080
+grid.linestyle: dotted
+grid.linewidth: 2
+
+axes.grid: True
+axes.axisbelow: True
+axes.edgecolor: 808080
+axes.linewidth: 2
+axes.labelcolor: 505050
+axes.titlesize: 30
+axes.labelsize: 30
+
+xtick.labelsize: 30
+xtick.color: 808080
+xtick.major.size: 6
+xtick.minor.size: 4
+xtick.major.width: 2
+xtick.minor.width: 1
+xtick.direction: in
+xtick.minor.visible: True
+xtick.major.pad: 10
+
+ytick.labelsize: 30
+ytick.color: 808080
+ytick.major.size: 6
+ytick.minor.size: 4
+ytick.major.width: 2
+ytick.minor.width: 1
+ytick.direction: in
+ytick.minor.visible: True
+ytick.major.pad: 10
+
+font.family: Times
+# font.serif: Nimbus Roman No9 L
+# font.serif: Computer Modern
+# font.sans-serif : Gill Sans
+font.size: 25
+
+legend.loc: best
+legend.fontsize: 25
+legend.fancybox: True
+legend.framealpha: 0.8
+
+hatch.linewidth: 2
+
+errorbar.capsize: 6
+
+savefig.pad_inches: 0
+savefig.bbox: tight
+savefig.format: pdf
+
+## ***************************************************************************
+## * BOXPLOT                                                                 *
+## ***************************************************************************
+#boxplot.notch: False
+#boxplot.vertical: True
+#boxplot.whiskers: 1.5
+#boxplot.bootstrap: None
+#boxplot.patchartist: False
+#boxplot.showmeans: False
+#boxplot.showcaps: True
+#boxplot.showbox: True
+#boxplot.showfliers: True
+#boxplot.meanline: False
+
+#boxplot.flierprops.color: black
+#boxplot.flierprops.marker: o
+#boxplot.flierprops.markerfacecolor: none
+#boxplot.flierprops.markeredgecolor: black
+boxplot.flierprops.markeredgewidth: 2.0
+boxplot.flierprops.markersize: 8
+#boxplot.flierprops.linestyle: none
+boxplot.flierprops.linewidth: 3.0
+
+#boxplot.boxprops.color: black
+boxplot.boxprops.linewidth: 2.0
+#boxplot.boxprops.linestyle: -
+
+#boxplot.whiskerprops.color: black
+boxplot.whiskerprops.linewidth: 2.0
+#boxplot.whiskerprops.linestyle: -
+
+#boxplot.capprops.color: black
+boxplot.capprops.linewidth: 2.0
+#boxplot.capprops.linestyle: -
+
+boxplot.medianprops.color: a00000
+boxplot.medianprops.linewidth: 3.0
+#boxplot.medianprops.linestyle: -
+
+#boxplot.meanprops.color: C2
+#boxplot.meanprops.marker: ^
+#boxplot.meanprops.markerfacecolor: C2
+#boxplot.meanprops.markeredgecolor: C2
+#boxplot.meanprops.markersize: 6
+#boxplot.meanprops.linestyle: --
+#boxplot.meanprops.linewidth: 1.0

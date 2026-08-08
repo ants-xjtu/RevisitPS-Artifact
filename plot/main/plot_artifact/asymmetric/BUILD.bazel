@@ -1,0 +1,11 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+package(default_visibility = ["//visibility:public"])
+[
+    py_binary(name = name[:-3], srcs = [name, "plot_common.py"])
+    for name in [
+        "plot_fig14_asym_dcn_fct.py",
+        "plot_fig15_asym_ooo_retransmission.py",
+        "plot_fig16_asym_packet_trim_rto.py",
+        "plot_fig17_asym_ai_collective_cct.py",
+    ]
+]

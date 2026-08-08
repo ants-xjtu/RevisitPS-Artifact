@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
+
+import csv
+import shlex
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ARTIFACT_DIR = Path(__file__).resolve().parents[1]
+NS3_ROOT = ARTIFACT_DIR.parent
+COMMON_DIR = ARTIFACT_DIR / "common"
+sys.path.insert(0, str(COMMON_DIR))
+
+import run_paper_matrix as extended  # noqa: E402
+
+
+class ExtendedMatrixTest(unittest.TestCase):
+    def test_complete_matrix_and_minimal_shared_selections(self) -> None:
+        tasks = extended.load_tasks(set(), set())
+        self.assertEqual(len(tasks), 181)
+        self.assertEqual(len(extended.load_tasks(set(), {"figure7"})), 47)
+        self.assertEqual(len(extended.load_tasks(set(), {"figure10"})), 1)
+        self.assertEqual(len(extended.load_tasks(set(), {"figure16"})), 6)
+        self.assertEqual(len(extended.load_tasks(set(), {"figure17"})), 48)
+
+    def test_paper_ai_and_lossy_parameters(self) -> None:
+        tasks = extended.load_tasks(set(), set())
+        ai = [task for task in tasks if task.workload in {"Alltoall", "RingAllreduce", "AlltoallV"}]
+        self.assertTrue(ai)
+        for task in ai:
+            self.assertEqual(task.command[:2], ("python3", "run.py"))
+            command = " ".join(task.command)
+            bw = task.command[task.command.index("--bw") + 1]
+            buffer = task.command[task.command.index("--buffer") + 1]
+            window = task.command[task.command.index("--windowSize") + 1]
+            if "figure17" in task.figures:
+                self.assertEqual(bw, "100")
+                self.assertEqual(buffer, "0")
+                if task.workload == "RingAllreduce":
+                    self.assertEqual(window, "512000")
+                else:
+                    self.assertEqual(window, "104000")
+            else:
+                self.assertEqual(bw, "400")
+                self.assertEqual(buffer, "0.32")
+                if task.workload == "RingAllreduce":
+                    self.assertEqual(window, "1024000")
+                elif "fat" in task.topology:
+                    self.assertEqual(window, "606000")
+                else:
+                    self.assertEqual(window, "404000")
+        lossy = [task for task in tasks if "--pfc" in task.command and task.command[task.command.index("--pfc") + 1] == "0"]
+        self.assertTrue(lossy)
+        for task in lossy:
+            command = " ".join(task.command)
+            self.assertIn("--rto_high 320", command)
+            self.assertIn("--rto_low 100", command)
+
+    def test_lossless_figure8_ai_groups_match_paper(self) -> None:
+        tasks = extended.load_tasks(set(), {"figure8"})
+        alltoallv_groups = sorted(
+            {task.group_size for task in tasks if task.workload == "AlltoallV"}
+        )
+        self.assertEqual(alltoallv_groups, [8, 32, 128])
+
+    def test_topology_host_bandwidth_matches_command_bw(self) -> None:
+        for task in extended.load_tasks(set(), set()):
+            bw = task.command[task.command.index("--bw") + 1]
+            config = NS3_ROOT / "config" / f"{task.topology}.txt"
+            with config.open(encoding="utf-8") as handle:
+                first = handle.readline().split()
+                n_host = int(first[0]) - int(first[1])
+                n_link = int(first[2])
+                speeds = set()
+                for index, line in enumerate(handle, start=1):
+                    if index > n_link:
+                        break
+                    fields = line.split()
+                    if len(fields) >= 3 and (
+                        int(fields[0]) < n_host or int(fields[1]) < n_host
+                    ):
+                        speeds.add(fields[2].removesuffix("Gbps"))
+            self.assertEqual(speeds, {bw}, task.topology)
+
+    def test_noar_commands_use_timeout_zero(self) -> None:
+        for task in extended.load_tasks(set(), set()):
+            armode = task.command[task.command.index("--armode") + 1]
+            timeout = task.command[
+                task.command.index("--timeout_slowstart_mode") + 1
+            ]
+            if armode == "noar":
+                self.assertEqual(timeout, "0", task.task_id)
+
+    def test_all_paper_outputs_are_present(self) -> None:
+        with (COMMON_DIR / "experiments_extended.csv").open(
+            newline="", encoding="utf-8"
+        ) as handle:
+            outputs = {
+                item
+                for row in csv.DictReader(handle)
+                for item in row["paper_outputs"].split(";")
+            }
+        self.assertEqual(
+            outputs,
+            {*(f"figure{i}" for i in range(7, 18)), "table5"},
+        )
+
+
+class ExtendedDryRunTest(unittest.TestCase):
+    def test_dry_run_does_not_create_results(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # The temporary cwd demonstrates that dry-run is path-independent;
+            # results remain anchored to the script and are not written.
+            result = subprocess.run(
+                [
+                    str(COMMON_DIR / "run_paper_matrix.sh"),
+                    "--figure", "figure10", "--dry-run",
+                ],
+                cwd=temp_dir,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        commands = [line for line in result.stdout.splitlines() if line.startswith("COMMAND ")]
+        self.assertEqual(len(commands), 1)
+        self.assertIn("--lb adaptive", commands[0])
+        self.assertIn("--cc none", commands[0])
+        self.assertIn("--netload 22469485", commands[0])
+
+    def test_lossless_figure8_plot_uses_paper_incast_groups(self) -> None:
+        result = subprocess.run(
+            [
+                str(
+                    ARTIFACT_DIR / "lossless"
+                    / "collective-communication-workloads"
+                    / "plot_results.sh"
+                ),
+                "--dry-run",
+            ],
+            cwd=NS3_ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        self.assertIn("figure8_a2av8", result.stdout)
+        self.assertIn("figure8_a2av32", result.stdout)
+        self.assertIn("figure8_a2av128", result.stdout)
+        self.assertNotIn("figure8_a2av64", result.stdout)
+
+    def test_group_plot_dry_runs_use_expected_plot_targets(self) -> None:
+        groups = {
+            ("lossless", "collective-communication-workloads"): 4,
+            ("lossy", "datacenter-workloads"): 2,
+            ("lossy", "collective-communication-workloads"): 1,
+            ("asymmetric", "datacenter-workloads"): 4,
+            ("asymmetric", "collective-communication-workloads"): 1,
+        }
+        commands = []
+        for (section, workload), expected in groups.items():
+            result = subprocess.run(
+                [
+                    str(
+                        ARTIFACT_DIR / section / workload
+                        / "plot_results.sh"
+                    ),
+                    "--dry-run",
+                ],
+                cwd=NS3_ROOT,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+            selected = [
+                line for line in result.stdout.splitlines()
+                if line.startswith("BAZEL_COMMAND ")
+            ]
+            self.assertEqual(len(selected), expected)
+            commands.extend(selected)
+        joined = "\n".join(commands)
+        for target in (
+            "plot_sim_ai_jct_avg", "plot_dcn_pfc_incast",
+            "plot_single_spine_qlen", "plot_dcn_rto_fct",
+            "plot_dcn_ooo", "plot_dcn_unnecessary_retrans",
+            "plot_dcn_rto_fct_trim_vs_rto", "plot_sim_ai_jct_avg_asy",
+        ):
+            self.assertIn(target, joined)
+
+
+class ChapterLayoutTest(unittest.TestCase):
+    GROUPS = {
+        ("lossless", "datacenter-workloads"): 20,
+        ("lossless", "collective-communication-workloads"): 50,
+        ("lossy", "datacenter-workloads"): 10,
+        ("lossy", "collective-communication-workloads"): 47,
+        ("asymmetric", "datacenter-workloads"): 26,
+        ("asymmetric", "collective-communication-workloads"): 48,
+    }
+
+    def test_every_group_has_readme_run_and_plot_entry_points(self) -> None:
+        for section, workload in self.GROUPS:
+            root = ARTIFACT_DIR / section / workload
+            for filename in (
+                "README.md", "run_experiments.sh", "parse_results.sh",
+                "plot_results.sh",
+            ):
+                self.assertTrue((root / filename).is_file(), root / filename)
+
+    def test_parse_wrappers_call_parser_phase_not_plot_phase(self) -> None:
+        for section, workload in self.GROUPS:
+            root = ARTIFACT_DIR / section / workload
+            parse_text = (root / "parse_results.sh").read_text(
+                encoding="utf-8"
+            )
+            plot_text = (root / "plot_results.sh").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn("parse_", parse_text)
+            self.assertNotIn("parse_", plot_text)
+
+    def test_explicit_runner_lines_partition_the_complete_artifact(self) -> None:
+        parameter_counts = {
+            ("lossless", "datacenter-workloads"): 13,
+            ("lossless", "collective-communication-workloads"): 18,
+            ("lossy", "datacenter-workloads"): 16,
+            ("lossy", "collective-communication-workloads"): 18,
+            ("asymmetric", "datacenter-workloads"): 16,
+            ("asymmetric", "collective-communication-workloads"): 18,
+        }
+        for (section, workload), expected in self.GROUPS.items():
+            runner = (
+                ARTIFACT_DIR / section / workload / "run_experiments.sh"
+            ).read_text(encoding="utf-8")
+            self.assertNotIn("common/run_paper_matrix.sh", runner)
+            groups = [
+                shlex.split(line)
+                for line in runner.splitlines()
+                if line.startswith("run_experiment_group ")
+            ]
+            fixed = 1 + parameter_counts[(section, workload)]
+            task_count = sum(len(group) - fixed for group in groups)
+            self.assertEqual(task_count, expected)
+
+
+if __name__ == "__main__":
+    unittest.main()

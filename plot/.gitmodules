@@ -1,0 +1,6 @@
+[submodule "neper"]
+	path = third_party/neper
+	url = https://github.com/google/neper.git
+[submodule "third_party/wireguard-install"]
+	path = third_party/wireguard-install
+	url = https://github.com/angristan/wireguard-install.git

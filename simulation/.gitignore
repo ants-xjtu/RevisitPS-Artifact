@@ -1,0 +1,74 @@
+# Build artifacts
+build/
+.waf*
+.lock-waf*
+*.tr
+
+# Editor and local tool state
+.vscode/
+.ccls-cache/
+.DS_Store
+*~
+*.swp
+*.swo
+
+# Python caches
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# ns-3 run outputs and logs
+logs/
+*.log
+mix/output/
+mix/output*/
+mix/history*/
+mix/final_history/
+mix/.history
+mix/*.history
+mix/*.txt
+mix/*.csv
+
+# Artifact run products. Keep artifact scripts, parser wrappers, tests, and the CSV matrix tracked.
+artifact/results/
+artifact/**/runs/
+artifact/**/logs/
+!artifact/common/experiments_extended.csv
+
+# Parser-generated JSON/CSV/plot data
+parser/json-data*/
+parser/csv*/
+parser/**/*.json
+parser/**/*.csv
+parser/**/*.pdf
+parser/**/*.png
+parser/**/*.bak
+parser/*.json
+parser/*.csv
+parser/*.pdf
+parser/*.png
+
+# Analysis-generated figures and intermediate data
+analysis/**/*.pdf
+analysis/**/*.png
+analysis/**/*.csv
+analysis/**/*.json
+analysis/figures*/
+
+# Generated traffic/config inputs from ad-hoc sweeps. Do not ignore topology files generally.
+config/L_*_flow*.txt
+config/previous/L_*_flow*.txt
+config/test/*_debug.txt
+traffic_gen/Fixed_*.txt
+traffic_gen/test_*.txt
+traffic_gen/*.png
+
+# Root-level preview/export files
+/*.json
+/*.pdf
+/*.png
+/pre_view.txt
+/cdf_plot*.png
+# Additional local plot exports and editor backups
+plots_rate/
+*.save

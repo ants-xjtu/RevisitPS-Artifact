@@ -1,4 +1,25 @@
+# Local paper copy (not submitted with the artifact repository)
+nsdi27spring-paper67.pdf
+
 # Python bytecode and cache directories
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Generated simulator artifacts
+simulation/build/
+simulation/mix/output/
+simulation/mix/output-BAK/
+simulation/logs/
+simulation/analysis/figures/
+
+# Generated testbed artifacts
+testbed/.env
+testbed/testbed-venv/
+testbed/logs/
+testbed/data/
+testbed/trace/
+
+# Generated plotting artifacts
+plot/figures/
+plot/output/

@@ -1,0 +1,19 @@
+load("@rules_python//python:defs.bzl", "py_binary")
+
+package(default_visibility = ["//visibility:public"])
+
+[
+    py_binary(
+        name = name[:-3],
+        srcs = [name, "plot_common.py"],
+    )
+    for name in [
+        "plot_fig04_lossless_dcn_p99_fct.py",
+        "plot_fig05_lossless_ooo_degree.py",
+        "plot_fig06_lossless_pfc_pause_duration.py",
+        "plot_fig07_lossless_ai_collective_cct.py",
+        "plot_fig08_lossless_pfc_incast_degree.py",
+        "plot_fig09_lossless_queue_per_pfc_event.py",
+        "plot_fig10_lossless_spine_queue_timeseries.py",
+    ]
+]

@@ -1,0 +1,367 @@
+load("@my_deps//:requirements.bzl", "requirement")
+load("@rules_python//python:defs.bzl", "py_binary")
+package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "plot",
+    srcs = ["plot.py"],
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_testbed_fct_cdf",
+    srcs = ["plot_testbed_fct_cdf.py"],
+    # Add this data dependency
+    data = glob(["*/testbed_fct*/*.csv"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_testbed_fct",
+    srcs = ["plot_testbed_fct.py"],
+    # Add this data dependency
+    data = glob(["*/testbed_fct*/*.csv"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_testbed_fct_t",
+    srcs = ["plot_testbed_fct_t.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_testbed_fct_n",
+    srcs = ["plot_testbed_fct_n.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_fct",
+    srcs = ["plot_dcn_fct.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_error_fct",
+    srcs = ["plot_dcn_error_fct.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_rto_fct",
+    srcs = ["plot_dcn_rto_fct.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+py_binary(
+    name = "plot_dcn_rto_fct_trim_vs_rto",
+    srcs = ["plot_dcn_rto_fct_trim_vs_rto.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+py_binary(
+    name = "plot_dcn_fct_lb_recovery_grouped",
+    srcs = ["plot_dcn_fct_lb_recovery_grouped.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_jct",
+    srcs = ["plot_dcn_jct.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# JCT slowdown vs. group size (x-axis = group size)
+py_binary(
+    name = "plot_dcn_jct_vs_groupsize",
+    srcs = ["plot_dcn_jct_vs_groupsize.py"],
+    data = glob(["*.json"]) + glob(["*/json-data-jct-vs-groupsize/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
+
+
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_ooo",
+    srcs = ["plot_dcn_ooo.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_spine_qlen_toal",
+    srcs = ["plot_dcn_spine_qlen_toal.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_single_spine_qlen",
+    srcs = ["plot_single_spine_qlen.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_spine_qlen_time",
+    srcs = ["plot_dcn_spine_qlen_time.py"],
+    data = glob(["*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_pfc_trigger",
+    srcs = ["plot_dcn_pfc_trigger.py"],
+    data = glob(["*/json-data-pfc/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_pfc_incast",
+    srcs = ["plot_dcn_pfc_incast.py"],
+    data = glob(["*/json-data-pfc/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# 主程序，依赖上面的库
+py_binary(
+    name = "plot_dcn_pfc_incast_workload",
+    srcs = ["plot_dcn_pfc_incast_workload.py"],
+    data = glob(["*/json-data-pfc/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+
+py_binary(
+    name = "plot_dcn_drop_count",
+    srcs = ["plot_dcn_drop_count.py"],
+    data = glob(["*/json-data-drops/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
+py_binary(
+    name = "plot_dcn_drop_rate",
+    srcs = ["plot_dcn_drop_rate.py"],
+    data = glob(["*/json-data-drops/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
+
+py_binary(
+    name = "plot_workload_cdf",
+    srcs = ["plot_workload_cdf.py"],
+    data = glob(["*/json-data-drops/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
+
+# Average JCT bar chart from testbed AI-workload JSON files
+py_binary(
+    name = "plot_testbed_ai_jct_avg",
+    srcs = ["plot_testbed_ai_jct_avg.py"],
+    data = glob(["*.json"]) + glob(["*/json-data-testbed-ai-jct/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
+
+# Stacked bar: necessary vs spurious retransmissions per LB across topos
+py_binary(
+    name = "plot_dcn_unnecessary_retrans",
+    srcs = ["plot_dcn_unnecessary_retrans.py"],
+    data = glob(["*/csv-unnecessary-retrans/*.csv"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("pandas"),
+        requirement("matplotlib"),
+    ],
+)
+
+# Average CCT bar chart from simulation AI-workload JSON files
+py_binary(
+    name = "plot_sim_ai_jct_avg",
+    srcs = ["plot_sim_ai_jct_avg.py"],
+    data = glob(["*.json"]) + glob(["*/json-data-400G-0p32-ai/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
+
+# Compare AR(RTO+GBN) across buffer sizes, same topo/bandwidth
+py_binary(
+    name = "plot_dcn_fct_per_bufsz",
+    srcs = ["plot_dcn_fct_per_bufsz.py"],
+    data = glob(["*/json-data-fct-per-bufsz/**/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
+
+# Average CCT bar chart comparing buffer sizes for AR(RTO+GBN)
+py_binary(
+    name = "plot_sim_ai_jct_avg_bufsz",
+    srcs = ["plot_sim_ai_jct_avg_bufsz.py"],
+    data = glob(["*.json"]) + glob(["*/json-data-jct-400G-buffersize/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
+
+# Average CCT bar chart for asymmetric-topology JSON files (json-data-jct-asy/)
+py_binary(
+    name = "plot_sim_ai_jct_avg_asy",
+    srcs = ["plot_sim_ai_jct_avg_asy.py"],
+    data = glob(["*.json"]) + glob(["*/json-data-jct-asy/*.json"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
+
+# Per-spine TRANSMIT PFC pause comparison bar chart
+py_binary(
+    name = "plot_testbed_pfc_per_spine",
+    srcs = ["plot_testbed_pfc_per_spine.py"],
+    data = glob(["testbed/**/*_pfc.txt"]),
+    deps = [
+        "//lib/py/plot",
+        requirement("numpy"),
+        requirement("matplotlib"),
+    ],
+)
