@@ -1128,6 +1128,10 @@ void RdmaHw::NotifyPacketDrop(uint32_t dip, uint16_t sport, uint16_t dport, uint
         qp->RecordArDrop(seq);
     }
 
+    if (!qp->ideal.m_enabled) {
+        return;
+    }
+
     if (m_cc_mode == 1) {  // mlx version
         cnp_received_mlx(qp);
     } else if (m_cc_mode == 2) {
@@ -1136,10 +1140,6 @@ void RdmaHw::NotifyPacketDrop(uint32_t dip, uint16_t sport, uint16_t dport, uint
     // COMMENTED OUT FOR DEBUGGING - Testing basic QP setup/wakeup only
     else if (m_cc_mode == 5) {  // Per-Lane DCQCN
         cnp_received_mlx_Lane(qp);
-    }
-
-    if (!qp->ideal.m_enabled) {
-        return;
     }
 
     qp->ideal.droppedPackets[seq] = payloadSize;

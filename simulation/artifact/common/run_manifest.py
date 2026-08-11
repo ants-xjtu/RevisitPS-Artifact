@@ -49,11 +49,26 @@ def append_manifest_row(path: Path, row: Mapping[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+", newline="", encoding="utf-8") as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
-        handle.seek(0, os.SEEK_END)
+        handle.seek(0)
+        rows = list(csv.DictReader(handle))
+        replacement = {field: str(row.get(field, "")) for field in FIELDS}
+        updated_rows = []
+        replaced = False
+        for existing in rows:
+            if existing.get("task_id") == replacement["task_id"]:
+                if not replaced:
+                    updated_rows.append(replacement)
+                    replaced = True
+                continue
+            updated_rows.append(existing)
+        if not replaced:
+            updated_rows.append(replacement)
+
+        handle.seek(0)
+        handle.truncate()
         writer = csv.DictWriter(handle, fieldnames=FIELDS)
-        if handle.tell() == 0:
-            writer.writeheader()
-        writer.writerow(row)
+        writer.writeheader()
+        writer.writerows(updated_rows)
         handle.flush()
         fcntl.flock(handle, fcntl.LOCK_UN)
     path.chmod(0o644)

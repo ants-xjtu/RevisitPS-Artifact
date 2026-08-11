@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from genericpath import exists
 import fcntl
+import shlex
 import subprocess
 import os
 import time
@@ -29,6 +30,40 @@ def append_history(path, content):
         history.write(content)
         history.flush()
         fcntl.flock(history, fcntl.LOCK_UN)
+
+
+def simulator_command(config_name, output_log):
+    """Return the simulator command and whether it can run without Waf."""
+    if os.environ.get("ARTIFACT_DIRECT_RUN") == "1":
+        simulator = os.path.join(
+            os.getcwd(), "build", "scratch", "network-load-balance",
+            "network-load-balance",
+        )
+        command = [simulator, config_name]
+        rendered = "{} > {} 2>&1".format(
+            " ".join(shlex.quote(argument) for argument in command),
+            shlex.quote(output_log),
+        )
+        return command, rendered
+
+    rendered = "./waf --run 'network-load-balance {}' > {} 2>&1".format(
+        config_name, output_log
+    )
+    return None, rendered
+
+
+def run_simulator(command, rendered, output_log):
+    if command is None:
+        return os.system(rendered)
+
+    with open(output_log, "w") as output:
+        completed = subprocess.run(
+            command,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    return completed.returncode
 
 # config template
 # MODIFICATION START: Replaced the static ENABLE_QCN line with a placeholder
@@ -924,8 +959,7 @@ def main():
     # run program
     print("Running simulation...")
     output_log = config_name.replace(".txt", ".log")
-    run_command = "./waf --run 'network-load-balance {config_name}' > {output_log} 2>&1".format(
-        config_name=config_name, output_log=output_log)
+    simulator, run_command = simulator_command(config_name, output_log)
     append_history(
         "./mix/.history",
         run_command + "\n"
@@ -936,11 +970,7 @@ def main():
     )
 
     print(run_command)
-    simulation_status = os.system(
-        "./waf --run 'network-load-balance {config_name}' > {output_log} 2>&1".format(
-            config_name=config_name, output_log=output_log
-        )
-    )
+    simulation_status = run_simulator(simulator, run_command, output_log)
     if simulation_status != 0:
         raise RuntimeError(
             "Simulation failed for config {} with wait status {}".format(

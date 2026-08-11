@@ -13,7 +13,7 @@ RevisitPS-Artifact/
 
 ## Component Sources
 
-- `simulation/` was imported from `git@github.com:majinchao2002/load-balance.git`, branch `ai-workload-fixes`, commit `74d5b92`.
+- `simulation/` was imported from `git@github.com:majinchao2002/load-balance.git`, branch `ai-workload-fixes`, commit `cbc6dd4`.
 - `plot/` was imported from `git@github.com:majinchao2002/monorepo.git`, branch `plb`, commit `86e6371`.
 - Nested component `.git` directories are intentionally removed so this artifact behaves as one repository.
 
@@ -63,6 +63,7 @@ The managed workflow lives under `simulation/artifact/`:
 cd simulation
 ./artifact/run_artifact.sh --section all --stage all --dry-run
 ./artifact/run_artifact.sh --section lossless --stage all --run-id trial1
+./artifact/run_artifact.sh --section lossless --stage run --run-id trial1 --resume
 ./artifact/run_artifact.sh --section lossless --workload datacenter-workloads --stage parse --run-id trial1
 ./artifact/run_artifact.sh --section lossless --stage status --run-id trial1
 ./artifact/run_artifact.sh --section lossy --stage parse --run-id trial1
@@ -74,10 +75,14 @@ filters are `datacenter-workloads`, `collective-communication-workloads`, and
 `all`. Supported stages are `run`, `parse`, `plot`, `status`, and `all`. Plot
 stages call Bazel targets under the sibling `plot/` workspace. Lossless managed
 runs write per-task progress and history directly under their `run-id`; use a
-different `run-id` for each concurrent invocation.
+different `run-id` for each independent concurrent invocation. Use `--resume`
+to attach to an active run or rerun only failed or missing tasks; running and
+completed tasks are not submitted again.
 Within each selected section, datacenter and collective-communication workload
 families run sequentially. A failed family does not skip the remaining family;
 the command returns nonzero after all selected families have been attempted.
+Concurrent simulation invocations serialize the incremental Waf build, then
+run the resulting simulator binary directly so experiments do not rebuild it.
 
 
 ## Testbed

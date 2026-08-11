@@ -38,6 +38,13 @@ def copy_file(src: Path, dst: Path, *, dry_run: bool = False) -> None:
     shutil.copy2(src, dst)
 
 
+def first_pdf(directory: Path, pattern: str) -> Path:
+    matches = sorted(directory.glob(pattern))
+    if not matches:
+        raise SystemExit(f"ERROR: no PDF matched {directory / pattern}")
+    return matches[0]
+
+
 def copy_matching(src_dir: Path, pattern: str, dst_dir: Path, prefix: str, *, dry_run: bool = False) -> None:
     if dry_run:
         print("COPY_MATCHING", src_dir / pattern, "->", dst_dir, f"prefix={prefix}")

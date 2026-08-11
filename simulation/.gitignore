@@ -31,6 +31,7 @@ mix/*.csv
 
 # Artifact run products. Keep artifact scripts, parser wrappers, tests, and the CSV matrix tracked.
 artifact/results/
+artifact/driver-logs/
 artifact/**/runs/
 artifact/**/logs/
 !artifact/common/experiments_extended.csv

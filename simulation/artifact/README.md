@@ -13,6 +13,7 @@ Run from `simulation/`:
 ```bash
 ./artifact/run_artifact.sh --section all --stage all --dry-run
 ./artifact/run_artifact.sh --section lossless --stage all --run-id trial1
+./artifact/run_artifact.sh --section lossless --stage run --run-id trial1 --resume
 ./artifact/run_artifact.sh --section lossless --workload datacenter-workloads --stage parse --run-id trial1
 ./artifact/run_artifact.sh --section lossless --stage status --run-id trial1
 ./artifact/run_artifact.sh --section lossy --stage all --run-id trial1
@@ -26,6 +27,7 @@ Options:
 --workload datacenter-workloads|collective-communication-workloads|all
 --stage run|parse|plot|status|all
 --run-id ID       result directory name; default is latest
+--resume          continue an existing completed/failed run
 --dry-run         print commands without running them
 --spine-id ID     Figure 10 spine node; default is 136
 ```
@@ -93,14 +95,18 @@ artifact/results/<section>/<workload-family>/runs/<run-id>/
 
 For lossless runs, `run.py` appends each parameter row under the selected
 `run-id` when configuration starts, while retaining the shared `mix/.history`
-compatibility log. At the same point, it appends the task metadata and new
-`config_id` to `manifest.csv`; `paper_outputs` is therefore visible while the
+compatibility log. At the same point, it records the task metadata and new
+`config_id` in `manifest.csv`; retrying a task replaces its prior manifest row,
+so `paper_outputs` is visible while the
 experiments are still running, not reconstructed after they finish. File
-locking keeps concurrent history and manifest append operations intact.
+locking keeps concurrent history and manifest update operations intact.
 `status.json` records every task as running, completed, or failed and the plain
 `status` file exposes the overall state. Different run IDs have independent
-logs, histories, and status; a second invocation with the same run ID is
-rejected. Parse refuses a tracked run until its state is `completed`.
+logs, histories, and status. Reusing a run ID is rejected unless `--resume` is
+given with the run stage. Resume can attach to an active run: it preserves
+history and manifest rows, skips running/completed tasks, and reruns failed or
+newly added tasks. Parse refuses a
+tracked run until its state is `completed`.
 
 `history/all.history` deliberately retains the simulator's fixed 24-column
 format because the original parsers read fields by position. Paper ownership
@@ -119,6 +125,9 @@ under `results/`.
 Within each selected section, workload families run sequentially and each
 family controls its own task parallelism. A failed family does not skip later
 families; the run stage returns nonzero after all selected families are tried.
+Every workload runner acquires a shared lock for its incremental Waf build and
+then runs the simulator binary directly. Multiple section commands can run in
+parallel without concurrently relinking that binary.
 
 
 Raw simulator output remains in `mix/output/<config-id>/`. Generated results,

@@ -13,6 +13,7 @@ WORKLOAD="all"
 STAGE="all"
 RUN_ID="latest"
 DRY_RUN=0
+RESUME=0
 SPINE_ID=136
 
 usage() {
@@ -24,6 +25,7 @@ Options:
   --workload datacenter-workloads|collective-communication-workloads|all
   --stage run|parse|plot|status|all
   --run-id ID             Result run directory name (default: latest)
+  --resume                Continue an existing completed/failed run
   --dry-run               Print commands without running them
   --spine-id ID           Figure 10 spine node (default: 136)
   -h, --help
@@ -48,6 +50,7 @@ while (($#)); do
         --workload) (($# >= 2)) || die "--workload requires a value"; WORKLOAD="$2"; shift 2 ;;
         --stage) (($# >= 2)) || die "--stage requires a value"; STAGE="$2"; shift 2 ;;
         --run-id) (($# >= 2)) || die "--run-id requires a value"; RUN_ID="$2"; shift 2 ;;
+        --resume) RESUME=1; shift ;;
         --dry-run) DRY_RUN=1; shift ;;
         --spine-id) (($# >= 2)) || die "--spine-id requires a value"; SPINE_ID="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -59,6 +62,9 @@ done
 [[ "$WORKLOAD" =~ ^(datacenter-workloads|collective-communication-workloads|all)$ ]] || die "invalid --workload: $WORKLOAD"
 [[ "$STAGE" =~ ^(run|parse|plot|status|all)$ ]] || die "invalid --stage: $STAGE"
 [[ "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "invalid --run-id: $RUN_ID"
+if ((RESUME)) && [[ "$STAGE" != "run" && "$STAGE" != "all" ]]; then
+    die "--resume requires --stage run or --stage all"
+fi
 
 DRY_ARGS=()
 if ((DRY_RUN)); then DRY_ARGS=(--dry-run); fi
@@ -117,14 +123,14 @@ run_stage() {
     local failed=0
     if want_section lossless; then
         if want_workload datacenter-workloads; then
-            run_workload lossless/datacenter-workloads env ARTIFACT_RUN_DIR="$(run_dir lossless datacenter-workloads)" \
+            run_workload lossless/datacenter-workloads env ARTIFACT_RUN_DIR="$(run_dir lossless datacenter-workloads)" ARTIFACT_RESUME="$RESUME" \
                 "$SCRIPT_DIR/lossless/datacenter-workloads/run_experiments.sh" || failed=1
             ((DRY_RUN)) || import_history_one lossless datacenter-workloads \
                 "$SCRIPT_DIR/lossless/datacenter-workloads/results/lossless_datacenter.history" \
                 "$SCRIPT_DIR/lossless/datacenter-workloads/results/lossless_datacenter_runs.csv"
         fi
         if want_workload collective-communication-workloads; then
-            run_workload lossless/collective-communication-workloads env ARTIFACT_RUN_DIR="$(run_dir lossless collective-communication-workloads)" \
+            run_workload lossless/collective-communication-workloads env ARTIFACT_RUN_DIR="$(run_dir lossless collective-communication-workloads)" ARTIFACT_RESUME="$RESUME" \
                 "$SCRIPT_DIR/lossless/collective-communication-workloads/run_experiments.sh" || failed=1
             ((DRY_RUN)) || import_history_one lossless collective-communication-workloads \
                 "$SCRIPT_DIR/results/lossless/collective-communication-workloads/extended.history" \
@@ -133,14 +139,14 @@ run_stage() {
     fi
     if want_section lossy; then
         if want_workload datacenter-workloads; then
-            run_workload lossy/datacenter-workloads env ARTIFACT_RUN_DIR="$(run_dir lossy datacenter-workloads)" \
+            run_workload lossy/datacenter-workloads env ARTIFACT_RUN_DIR="$(run_dir lossy datacenter-workloads)" ARTIFACT_RESUME="$RESUME" \
                 "$SCRIPT_DIR/lossy/datacenter-workloads/run_experiments.sh" || failed=1
             ((DRY_RUN)) || import_history_one lossy datacenter-workloads \
                 "$SCRIPT_DIR/results/lossy/datacenter-workloads/extended.history" \
                 "$SCRIPT_DIR/results/lossy/datacenter-workloads/extended_runs.csv"
         fi
         if want_workload collective-communication-workloads; then
-            run_workload lossy/collective-communication-workloads env ARTIFACT_RUN_DIR="$(run_dir lossy collective-communication-workloads)" \
+            run_workload lossy/collective-communication-workloads env ARTIFACT_RUN_DIR="$(run_dir lossy collective-communication-workloads)" ARTIFACT_RESUME="$RESUME" \
                 "$SCRIPT_DIR/lossy/collective-communication-workloads/run_experiments.sh" || failed=1
             ((DRY_RUN)) || import_history_one lossy collective-communication-workloads \
                 "$SCRIPT_DIR/results/lossy/collective-communication-workloads/extended.history" \
@@ -149,14 +155,14 @@ run_stage() {
     fi
     if want_section asymmetric; then
         if want_workload datacenter-workloads; then
-            run_workload asymmetric/datacenter-workloads env ARTIFACT_RUN_DIR="$(run_dir asymmetric datacenter-workloads)" \
+            run_workload asymmetric/datacenter-workloads env ARTIFACT_RUN_DIR="$(run_dir asymmetric datacenter-workloads)" ARTIFACT_RESUME="$RESUME" \
                 "$SCRIPT_DIR/asymmetric/datacenter-workloads/run_experiments.sh" || failed=1
             ((DRY_RUN)) || import_history_one asymmetric datacenter-workloads \
                 "$SCRIPT_DIR/results/asymmetric/datacenter-workloads/extended.history" \
                 "$SCRIPT_DIR/results/asymmetric/datacenter-workloads/extended_runs.csv"
         fi
         if want_workload collective-communication-workloads; then
-            run_workload asymmetric/collective-communication-workloads env ARTIFACT_RUN_DIR="$(run_dir asymmetric collective-communication-workloads)" \
+            run_workload asymmetric/collective-communication-workloads env ARTIFACT_RUN_DIR="$(run_dir asymmetric collective-communication-workloads)" ARTIFACT_RESUME="$RESUME" \
                 "$SCRIPT_DIR/asymmetric/collective-communication-workloads/run_experiments.sh" || failed=1
             ((DRY_RUN)) || import_history_one asymmetric collective-communication-workloads \
                 "$SCRIPT_DIR/results/asymmetric/collective-communication-workloads/extended.history" \

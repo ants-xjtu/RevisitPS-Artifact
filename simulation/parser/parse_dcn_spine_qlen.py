@@ -7,6 +7,9 @@ import os
 import json
 from collections import defaultdict
 
+
+NANOSECONDS_PER_SECOND = 1_000_000_000
+
 # --- Dictionaries for mode mapping (aligned with reference script) ---
 cc_modes = {
     1: "dcqcn", 2: "dcqcn_dst", 3: "hp", 4: "none", 5: "dcqcn_lane", 7: "timely", 8: "dctcp",
@@ -27,7 +30,41 @@ def get_spine_node_ids(n_leaf, n_spine, servers_per_leaf):
     spine_ids = list(range(id_offset_spine, id_offset_spine + n_spine))
     return spine_ids
 
-def parse_qlen_file(filepath, spine_node_ids, queue_type_col):
+
+def read_flowgen_window_ns(config_path):
+    """Read the configured traffic-generation interval and convert it to ns."""
+    required = ("FLOWGEN_START_TIME", "FLOWGEN_STOP_TIME")
+    values = {}
+    with open(config_path, "r") as config_file:
+        for line in config_file:
+            fields = line.split()
+            if len(fields) >= 2 and fields[0] in required:
+                values[fields[0]] = float(fields[1])
+
+    missing = [key for key in required if key not in values]
+    if missing:
+        raise ValueError(
+            f"Missing {', '.join(missing)} in simulation config: {config_path}"
+        )
+
+    start_ns = round(values["FLOWGEN_START_TIME"] * NANOSECONDS_PER_SECOND)
+    end_ns = round(values["FLOWGEN_STOP_TIME"] * NANOSECONDS_PER_SECOND)
+    if end_ns < start_ns:
+        raise ValueError(
+            f"Invalid flow-generation interval in simulation config: {config_path}"
+        )
+    return start_ns, end_ns
+
+
+def parse_qlen_file(
+    filepath,
+    spine_node_ids,
+    queue_type_col,
+    *,
+    start_time_ns=None,
+    end_time_ns=None,
+    spine_port_ids=None,
+):
     """
     Reads a queue length data file, filters for spine nodes, and calculates statistics for a given queue type.
     
@@ -51,6 +88,12 @@ def parse_qlen_file(filepath, spine_node_ids, queue_type_col):
         return None
 
     spine_df = df[df['node_id'].isin(spine_node_ids)]
+    if spine_port_ids is not None:
+        spine_df = spine_df[spine_df['port_id'].isin(spine_port_ids)]
+    if start_time_ns is not None:
+        spine_df = spine_df[spine_df['timestamp'] >= start_time_ns]
+    if end_time_ns is not None:
+        spine_df = spine_df[spine_df['timestamp'] <= end_time_ns]
     
     if spine_df.empty or queue_type_col not in spine_df.columns:
         return None
@@ -80,7 +123,12 @@ def parse_qlen_file(filepath, spine_node_ids, queue_type_col):
     summary = {
         'avg_qlen_bytes': float(spine_df[queue_type_col].mean()),
         'max_qlen_bytes': int(spine_df[queue_type_col].max()),
-        'p99_qlen_bytes': float(spine_df[queue_type_col].quantile(0.99))
+        'p99_qlen_bytes': float(spine_df[queue_type_col].quantile(0.99)),
+        'sample_count': int(len(spine_df)),
+        'window_start_ns': (
+            int(start_time_ns) if start_time_ns is not None else None
+        ),
+        'window_end_ns': int(end_time_ns) if end_time_ns is not None else None,
     }
     
     # Prepare time-series data for JSON serialization.
@@ -103,6 +151,16 @@ def main():
     parser.add_argument('--n_leaf', type=int, default=8, help='Number of leaf switches in the topology.')
     parser.add_argument('--n_spine', type=int, default=8, help='Number of spine switches in the topology.')
     parser.add_argument('--servers_per_leaf', type=int, default=16, help='Number of servers connected to each leaf switch.')
+    parser.add_argument(
+        '--use_flowgen_window',
+        action='store_true',
+        help='Only include samples from FLOWGEN_START_TIME through FLOWGEN_STOP_TIME.',
+    )
+    parser.add_argument(
+        '--spine_port_count',
+        type=int,
+        help='Only include physical spine ports 1 through this value.',
+    )
     
     args = parser.parse_args()
 
@@ -171,6 +229,15 @@ def main():
     # --- Step 2: Process each group and generate a JSON file ---
     spine_ids = get_spine_node_ids(args.n_leaf, args.n_spine, args.servers_per_leaf)
     print(f"Identified Spine Node IDs: {spine_ids}")
+    if args.spine_port_count is not None and args.spine_port_count < 1:
+        raise SystemExit("ERROR: --spine_port_count must be positive")
+    spine_port_ids = (
+        list(range(1, args.spine_port_count + 1))
+        if args.spine_port_count is not None
+        else None
+    )
+    if spine_port_ids is not None:
+        print(f"Included Spine Port IDs: {spine_port_ids}")
 
     for k, v_configs in map_key_to_config.items():
         # --- MODIFIED: Update metadata to include all key components ---
@@ -188,16 +255,42 @@ def main():
         for entry in v_configs:
             config_id = entry["config_id"]
             qlen_file_path = os.path.join(output_data_dir, config_id, f"{config_id}_out_qlen.txt")
+            start_time_ns = None
+            end_time_ns = None
+            if args.use_flowgen_window:
+                config_path = os.path.join(output_data_dir, config_id, "config.txt")
+                try:
+                    start_time_ns, end_time_ns = read_flowgen_window_ns(config_path)
+                except (FileNotFoundError, ValueError) as error:
+                    raise SystemExit(f"ERROR: {error}") from error
             
             print(f"---> Parsing data for Config ID: {config_id}")
 
-            ingress_data = parse_qlen_file(qlen_file_path, spine_ids, 'ingress_qlen')
-            egress_data = parse_qlen_file(qlen_file_path, spine_ids, 'egress_qlen')
+            parse_kwargs = {
+                'start_time_ns': start_time_ns,
+                'end_time_ns': end_time_ns,
+                'spine_port_ids': spine_port_ids,
+            }
+            ingress_data = parse_qlen_file(
+                qlen_file_path, spine_ids, 'ingress_qlen', **parse_kwargs
+            )
+            egress_data = parse_qlen_file(
+                qlen_file_path, spine_ids, 'egress_qlen', **parse_kwargs
+            )
 
             if ingress_data or egress_data:
                 series_data = {
                     "load_balancing_mode": entry["lb_mode"],
                     "recovery_mechanism": entry["recovery"],
+                    "sample_scope": {
+                        "time_window_source": (
+                            "FLOWGEN_START_TIME/FLOWGEN_STOP_TIME"
+                            if args.use_flowgen_window else "all recorded samples"
+                        ),
+                        "start_time_ns": start_time_ns,
+                        "end_time_ns": end_time_ns,
+                        "spine_port_ids": spine_port_ids,
+                    },
                     "ingress_data": ingress_data,
                     "egress_data": egress_data
                 }

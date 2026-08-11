@@ -96,10 +96,9 @@ uint64_t ai_message_size = 16000;
 std::string ai_message_sizes_file = "none";
 uint32_t ai_nodes_per_group = 8;
 uint32_t num_rounds = 1;
-// queue length monitoring time is not used in this simulator
-// uint32_t qlen_dump_interval = 100000000, qlen_mon_interval = 1000;  // ns
-uint64_t qlen_mon_start;               // ns
-uint64_t qlen_mon_end;                 // ns
+// Queue length samples are emitted only within this configured time window.
+double qlen_mon_start = 2.0;           // seconds
+double qlen_mon_end = 2.5;             // seconds
 uint32_t switch_mon_interval = 10000;  // ns
 uint32_t sglb_remote_mon_interval = 5000;  // ns
 uint64_t cnp_mon_start;                // ns
@@ -382,18 +381,22 @@ void cnp_freq_monitoring(FILE *fout, Ptr<RdmaHw> rdmahw) {
 
 void qlen_print()
 {
+    Time now = Simulator::Now();
+    if (now < Seconds(qlen_mon_start) || now > Seconds(qlen_mon_end)) {
+        return;
+    }
     if (qlen_output) {
         for (uint32_t i = 0; i < Settings::node_num; i++) {
             if (n.Get(i)->GetNodeType() == 1) {  // is server
                 Ptr<SwitchNode> sw = DynamicCast<SwitchNode>(n.Get(i));
                 uint32_t nports = sw->GetNDevices();
-                for (uint32_t j = 1; j <= nports; j++) {
+                for (uint32_t j = 1; j < nports; j++) {
                     // 假设 egress queue index 同样为 3
                     uint32_t qIndex = 3; 
 
                     // 修改了 fprintf 格式化字符串，并增加了新的输出项
                     fprintf(qlen_output, "%lu,%u,%u,%u,%u,%u\n", 
-                            Simulator::Now().GetNanoSeconds(),
+                            now.GetNanoSeconds(),
                             i,                                  // node id
                             j,                                  // port id
                             sw->m_mmu->m_usedIngressPGBytes[j][qIndex],
@@ -915,7 +918,7 @@ void monitor_buffer(FILE *qlen_output, NodeContainer *n) {
         }
         fflush(qlen_output);
     }
-    if (Simulator::Now().GetTimeStep() < qlen_mon_end)
+    if (Simulator::Now() < Seconds(qlen_mon_end))
         Simulator::Schedule(NanoSeconds(qlen_mon_interval), &monitor_buffer, qlen_output, n);
 }
 #endif
@@ -1390,8 +1393,6 @@ int main(int argc, char *argv[]) {
                 double v;
                 conf >> v;
                 flowgen_start_time = v;
-                qlen_mon_start = v;
-                qlen_mon_end = v;
                 cnp_mon_start = v;
                 irn_mon_start = v;
                 std::cerr << "FLOWGEN_START_TIME\t\t" << flowgen_start_time << "\n";

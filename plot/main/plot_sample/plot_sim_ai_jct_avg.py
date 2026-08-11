@@ -77,6 +77,13 @@ COMBINED_GROUP_CATEGORIES = {
         ("AlltoallV", 16, "A2Av-16"),
     ],
     "lossless-high-incast": COMBINED_CATEGORIES,
+    "lossy-low-incast": [
+        ("Alltoall", 8, "A2A"),
+        ("RingAllreduce", 8, "AllR"),
+        ("AlltoallV", 8, "A2Av-8"),
+        ("AlltoallV", 16, "A2Av-16"),
+    ],
+    "lossy-high-incast": COMBINED_CATEGORIES,
     "1": [("ECMP",     "NAK+GBN",            "DCQCN"),
     ("ConWeave", "NAK+GBN",            "DCQCN"),
     ("DRILL",    "RTO+GBN",           "DCQCN"),
@@ -104,6 +111,10 @@ COMBINED_GROUP_CATEGORIES = {
     ("AR",       "RTO+GBN+1/8",       "DCQCN"),
     ("AR",       "RTO+GBN+1/32",       "DCQCN"),
     ("AR",       "RTO+GBN+1/128",       "DCQCN"),],
+}
+
+COMBINED_GROUP_COMBOS = {
+    "lossy-high-incast": COMBINED_GROUP_CATEGORIES["4"],
 }
 
 
@@ -205,7 +216,7 @@ def _get_combined_group_settings(group_name):
         print(f"[WARN] combined-group '{group_name}' contains combo tuples; "
               "use as INCLUDE_COMBOS override with default categories.")
         return COMBINED_GROUP_CATEGORIES["default"], group_name, cats
-    return cats, group_name, None
+    return cats, group_name, COMBINED_GROUP_COMBOS.get(group_name)
 
 
 def _apply_plot_style(ax, legend=None):
@@ -423,7 +434,7 @@ def draw_combined(topo, fc, workload_data, output_dir, dcqcn_only, normalize,
     lb_counts = {}
     for lb, _rec, _cc in series_keys:
         lb_counts[lb] = lb_counts.get(lb, 0) + 1
-    show_recovery = resolved_group == "4"
+    show_recovery = resolved_group in {"4", "lossy-high-incast"}
     category_names = [name for (_, _, name) in combined_categories]
 
     p = plot.BarPlot()

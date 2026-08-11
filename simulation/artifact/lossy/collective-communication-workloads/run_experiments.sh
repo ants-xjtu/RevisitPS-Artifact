@@ -116,6 +116,7 @@ run_experiment_group() {
 }
 
 cd "$NS3_ROOT" || exit 1
+artifact_prepare_simulator "$NS3_ROOT" || exit 1
 artifact_tracking_init lossy collective-communication-workloads 47 || exit 1
 artifact_result_files_init "$HISTORY_FILE" "$MANIFEST_FILE" || exit 1
 mkdir -p "$LOG_DIR"

@@ -103,6 +103,36 @@ wait "$task_pid"
                 {str(index + 1000) for index in range(16)},
             )
 
+    def test_retry_replaces_manifest_row_for_the_same_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest = Path(temp_dir) / "manifest.csv"
+            environment = os.environ.copy()
+            environment.update({
+                "ARTIFACT_MANIFEST_FILE": str(manifest),
+                "ARTIFACT_TASK_ID": "task-a",
+                "ARTIFACT_RECIPE": "f9_t5_base",
+                "ARTIFACT_PAPER_OUTPUTS": "figure9;table5",
+                "ARTIFACT_TOPOLOGY": "leaf_spine_L8_S16_100G_OS1",
+                "ARTIFACT_WORKLOAD": "AliStorage2019",
+                "ARTIFACT_GROUP_SIZE": "1",
+                "ARTIFACT_ALGORITHM": "ConWeave",
+                "ARTIFACT_TIMEOUT_MODE": "0",
+                "ARTIFACT_COMMAND": "python3 run.py --lb conweave",
+            })
+
+            for config_id in ("100", "200"):
+                subprocess.run(
+                    ["python3", str(MANIFEST_TOOL), "append", config_id],
+                    env=environment,
+                    check=True,
+                )
+
+            with manifest.open(newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["task_id"], "task-a")
+            self.assertEqual(rows[0]["config_id"], "200")
+
 
 if __name__ == "__main__":
     unittest.main()

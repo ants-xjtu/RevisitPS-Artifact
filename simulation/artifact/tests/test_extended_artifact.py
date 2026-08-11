@@ -13,6 +13,7 @@ from pathlib import Path
 
 ARTIFACT_DIR = Path(__file__).resolve().parents[1]
 NS3_ROOT = ARTIFACT_DIR.parent
+REPO_ROOT = NS3_ROOT.parent
 COMMON_DIR = ARTIFACT_DIR / "common"
 sys.path.insert(0, str(COMMON_DIR))
 
@@ -159,7 +160,7 @@ class ExtendedDryRunTest(unittest.TestCase):
         groups = {
             ("lossless", "collective-communication-workloads"): 4,
             ("lossy", "datacenter-workloads"): 2,
-            ("lossy", "collective-communication-workloads"): 1,
+            ("lossy", "collective-communication-workloads"): 2,
             ("asymmetric", "datacenter-workloads"): 4,
             ("asymmetric", "collective-communication-workloads"): 1,
         }
@@ -203,6 +204,30 @@ class ChapterLayoutTest(unittest.TestCase):
         ("asymmetric", "datacenter-workloads"): 26,
         ("asymmetric", "collective-communication-workloads"): 48,
     }
+
+    def test_lossy_datacenter_parser_counts_match_runner_matrix(self) -> None:
+        parser_root = NS3_ROOT / "parser" / "artifact" / "lossy"
+        figure11 = (
+            parser_root / "parse_fig11_lossy_dcn_p99_fct_leafspine.py"
+        ).read_text(encoding="utf-8")
+        figure12 = (
+            parser_root / "parse_fig12_lossy_dcn_p99_fct_fattree.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('figures={"figure11"}, expected=4', figure11)
+        self.assertIn('figures={"figure12"}, expected=6', figure12)
+
+    def test_lossy_figure13_wrapper_generates_both_paper_panels(self) -> None:
+        wrapper = (
+            REPO_ROOT / "plot" / "main" / "plot_artifact" / "lossy"
+            / "plot_fig13_lossy_ai_collective_cct.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('"lossy-low-incast"', wrapper)
+        self.assertIn('"lossy-high-incast"', wrapper)
+        self.assertIn(
+            "fig13{panel}_lossy_ai_collective_cct_{suffix}.pdf", wrapper
+        )
 
     def test_every_group_has_readme_run_and_plot_entry_points(self) -> None:
         for section, workload in self.GROUPS:

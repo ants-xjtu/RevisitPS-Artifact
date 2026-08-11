@@ -66,6 +66,15 @@ to the same managed `run_artifact.sh` workflow.
 | Table 4 | spine egress queue | 5 | `parse_dcn_spine_qlen.py` |
 | Table 5 | spine PFC balance | 5 | `parse_dcn_pfc_spine_balance.py` |
 
+Table 4 averages egress queue samples on the eight physical ports of each
+spine during the configured traffic-generation interval
+(`FLOWGEN_START_TIME` through `FLOWGEN_STOP_TIME`). Samples recorded while
+flows drain after that interval and the simulator's synthetic trailing port
+are excluded. New simulations also bound raw queue monitoring to
+`QLEN_MON_START` through `QLEN_MON_END`, which `run.py` sets to the same
+interval. The selected interval and port IDs are recorded in each JSON series
+under `sample_scope`.
+
 The manifest records `paper_outputs` when each configuration starts. Parsers
 join `manifest.csv` with `history/all.history` by `config_id`; they do not infer
 figure ownership from topology or workload fields. Figure-specific histories

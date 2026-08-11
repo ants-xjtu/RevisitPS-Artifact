@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import os
 import subprocess
@@ -13,6 +14,11 @@ from pathlib import Path
 ARTIFACT_DIR = Path(__file__).resolve().parents[1]
 STATUS_TOOL = ARTIFACT_DIR / "common" / "run_status.py"
 TRACKING_TOOL = ARTIFACT_DIR / "common" / "run_tracking.sh"
+RUNNER = ARTIFACT_DIR / "run_artifact.sh"
+MANIFEST_FIELDS = (
+    "task_id", "recipe", "paper_outputs", "config_id", "topology",
+    "workload", "group_size", "algorithm", "timeout_mode", "command",
+)
 
 
 class RunStatusTest(unittest.TestCase):
@@ -22,6 +28,32 @@ class RunStatusTest(unittest.TestCase):
             check=check,
             text=True,
             capture_output=True,
+        )
+
+    def write_manifest(self, run_dir: Path, **overrides: str) -> str:
+        row = {
+            "task_id": "legacy-task",
+            "recipe": "f9_t5_base",
+            "paper_outputs": "figure9;table5",
+            "config_id": "101",
+            "topology": "leaf_spine_L8_S16_100G_OS1",
+            "workload": "AliStorage2019",
+            "group_size": "1",
+            "algorithm": "ECMP",
+            "timeout_mode": "0",
+            "command": "python3 run.py",
+            **overrides,
+        }
+        with (run_dir / "manifest.csv").open(
+            "w", newline="", encoding="utf-8"
+        ) as handle:
+            writer = csv.DictWriter(handle, fieldnames=MANIFEST_FIELDS)
+            writer.writeheader()
+            writer.writerow(row)
+        return (
+            f'{row["recipe"]}__{row["topology"]}__{row["workload"]}'
+            f'__g{row["group_size"]}__{row["algorithm"]}'
+            f'__t{row["timeout_mode"]}'
         )
 
     def test_tracks_running_completed_and_failed_tasks(self) -> None:
@@ -87,6 +119,160 @@ class RunStatusTest(unittest.TestCase):
 
             self.assertNotEqual(second.returncode, 0)
             self.assertIn("already exists", second.stderr)
+
+    def test_resume_normalizes_legacy_task_ids_and_expands_expected(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir) / "trial"
+            self.run_tool(
+                "init", "--run-dir", str(run_dir), "--section", "lossless",
+                "--workload", "datacenter-workloads", "--expected", "1",
+            )
+            (run_dir / "history" / "all.history").write_text(
+                "date,101\n", encoding="utf-8"
+            )
+            canonical = self.write_manifest(run_dir)
+            self.run_tool(
+                "update", "--run-dir", str(run_dir), "--task-id", "legacy-task",
+                "--status", "completed", "--config-id", "101",
+            )
+            self.run_tool("finalize", "--run-dir", str(run_dir))
+
+            self.run_tool(
+                "resume", "--run-dir", str(run_dir), "--section", "lossless",
+                "--workload", "datacenter-workloads", "--expected", "2",
+            )
+
+            state = json.loads(
+                (run_dir / "status.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(state["state"], "running")
+            self.assertEqual(state["summary"]["expected"], 2)
+            self.assertEqual(state["summary"]["completed"], 1)
+            self.assertEqual(state["summary"]["pending"], 1)
+            self.assertEqual(set(state["tasks"]), {canonical})
+            self.run_tool(
+                "task-completed", "--run-dir", str(run_dir),
+                "--task-id", canonical,
+            )
+
+    def test_resume_active_run_skips_running_and_completed_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir) / "trial"
+            self.run_tool(
+                "init", "--run-dir", str(run_dir), "--section", "lossless",
+                "--workload", "datacenter-workloads", "--expected", "3",
+            )
+            (run_dir / "history" / "all.history").write_text(
+                "date,101\n", encoding="utf-8"
+            )
+            completed = self.write_manifest(run_dir, task_id="task-completed")
+            self.run_tool(
+                "update", "--run-dir", str(run_dir),
+                "--task-id", "task-completed", "--status", "completed",
+                "--config-id", "101",
+            )
+            self.run_tool(
+                "update", "--run-dir", str(run_dir),
+                "--task-id", "task-running", "--status", "running",
+            )
+            self.run_tool(
+                "update", "--run-dir", str(run_dir),
+                "--task-id", "task-failed", "--status", "failed",
+                "--exit-code", "1",
+            )
+
+            self.run_tool(
+                "resume", "--run-dir", str(run_dir), "--section", "lossless",
+                "--workload", "datacenter-workloads", "--expected", "3",
+            )
+
+            self.run_tool(
+                "task-skippable", "--run-dir", str(run_dir),
+                "--task-id", completed,
+            )
+            self.run_tool(
+                "task-skippable", "--run-dir", str(run_dir),
+                "--task-id", "task-running",
+            )
+            failed = self.run_tool(
+                "task-skippable", "--run-dir", str(run_dir),
+                "--task-id", "task-failed", check=False,
+            )
+            self.assertNotEqual(failed.returncode, 0)
+
+            finalized = self.run_tool(
+                "finalize", "--run-dir", str(run_dir), check=False
+            )
+            self.assertNotEqual(finalized.returncode, 0)
+            state = json.loads(
+                (run_dir / "status.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(state["state"], "running")
+            self.assertIsNone(state["finished_at"])
+
+    def test_shell_resume_preserves_metadata_and_skips_completed_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir) / "trial"
+            self.run_tool(
+                "init", "--run-dir", str(run_dir), "--section", "lossless",
+                "--workload", "datacenter-workloads", "--expected", "1",
+            )
+            history = run_dir / "history" / "all.history"
+            history.write_text("row-old\n", encoding="utf-8")
+            canonical = self.write_manifest(run_dir)
+            manifest_before = (run_dir / "manifest.csv").read_bytes()
+            self.run_tool(
+                "update", "--run-dir", str(run_dir), "--task-id", "legacy-task",
+                "--status", "completed", "--config-id", "101",
+            )
+            self.run_tool("finalize", "--run-dir", str(run_dir))
+
+            script = r'''
+source "$1"
+artifact_tracking_init lossless datacenter-workloads 2
+artifact_result_files_init "$ARTIFACT_RUN_DIR/history/all.history" "$ARTIFACT_RUN_DIR/manifest.csv"
+artifact_run_background "$2" "$ARTIFACT_RUN_DIR/logs/skipped.log" bash -c \
+    'touch "$ARTIFACT_RUN_DIR/skipped"'
+artifact_run_background task-new "$ARTIFACT_RUN_DIR/logs/new.log" bash -c \
+    'printf "Config filename:/mix/output/202/config.txt\\n"; printf "row-new\\n" >> "$ARTIFACT_HISTORY_FILE"'
+artifact_wait_for_tasks
+artifact_tracking_finalize
+'''
+            environment = os.environ.copy()
+            environment["ARTIFACT_RUN_DIR"] = str(run_dir)
+            environment["ARTIFACT_RESUME"] = "1"
+            result = subprocess.run(
+                ["bash", "-c", script, "bash", str(TRACKING_TOOL), canonical],
+                env=environment, text=True, capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Skip running/completed task", result.stdout)
+            self.assertFalse((run_dir / "skipped").exists())
+            self.assertEqual(
+                history.read_text(encoding="utf-8").splitlines(),
+                ["row-old", "row-new"],
+            )
+            self.assertEqual((run_dir / "manifest.csv").read_bytes(), manifest_before)
+            state = json.loads(
+                (run_dir / "status.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(state["state"], "completed")
+            self.assertEqual(state["summary"]["completed"], 2)
+
+    def test_managed_runner_forwards_resume_mode(self) -> None:
+        result = subprocess.run(
+            [
+                str(RUNNER), "--section", "lossless", "--workload",
+                "datacenter-workloads", "--stage", "run", "--run-id",
+                "resume-dry-run", "--resume", "--dry-run",
+            ],
+            cwd=ARTIFACT_DIR.parent,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        self.assertIn("ARTIFACT_RESUME=1", result.stdout)
 
     def test_shell_tracking_propagates_init_failure(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

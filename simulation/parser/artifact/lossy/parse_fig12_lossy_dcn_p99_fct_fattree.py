@@ -14,7 +14,7 @@ def main() -> int:
     paths = resolve_run_paths(args, OUTPUT)
     with temporary_workdir("fig12-history", dry_run=args.dry_run) as work:
         selected = work / "figure12.history"
-        select_manifest_history(paths.manifest, paths.history, selected, figures={"figure12"}, expected=7, dry_run=args.dry_run)
+        select_manifest_history(paths.manifest, paths.history, selected, figures={"figure12"}, expected=6, dry_run=args.dry_run)
         if not args.dry_run:
             paths.output_dir.mkdir(parents=True, exist_ok=True)
         run(["python3", args.ns3_root / "parser" / "parse_dcn_fct_rto.py", selected, "-o", paths.output_dir], dry_run=args.dry_run)

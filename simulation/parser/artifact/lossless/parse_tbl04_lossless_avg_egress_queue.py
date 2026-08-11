@@ -37,6 +37,8 @@ def main() -> int:
             "--n_leaf", 8,
             "--n_spine", 8,
             "--servers_per_leaf", 16,
+            "--use_flowgen_window",
+            "--spine_port_count", 8,
         ]
         with temporary_parser_stage(
             args.ns3_root,

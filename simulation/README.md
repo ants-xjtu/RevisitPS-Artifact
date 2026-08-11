@@ -76,6 +76,7 @@ Run from `simulation/`:
 ./artifact/run_artifact.sh --section lossless --stage all --run-id trial1
 ./artifact/run_artifact.sh --section lossless --workload datacenter-workloads --stage parse --run-id trial1
 ./artifact/run_artifact.sh --section lossless --stage status --run-id trial1
+./artifact/run_artifact.sh --section lossless --stage run --run-id trial1 --resume
 ./artifact/run_artifact.sh --section lossy --stage parse --run-id trial1
 ./artifact/run_artifact.sh --section asymmetric --stage plot --run-id trial1
 ```
@@ -87,6 +88,9 @@ select one workload family. Supported stages are `run`, `parse`, `plot`,
 Within each selected section, datacenter and collective-communication workload
 families run sequentially. A failed family does not skip the remaining family;
 the command returns nonzero after all selected families have been attempted.
+Each workload runner serializes the incremental Waf build with a shared lock,
+then launches the built simulator directly. Separate lossless and lossy commands
+can therefore run concurrently without racing on the simulator executable.
 
 
 Managed outputs are stored under:
@@ -103,7 +107,7 @@ artifact/results/<section>/<workload-family>/runs/<run-id>/
   tables/
 ```
 
-Generated outputs are ignored by Git. Lossless managed runs append each history row to both the compatibility log `mix/.history` and the selected `run-id` as soon as the simulation is configured. At the same time, `manifest.csv` receives the `config_id` and its `paper_outputs` marker. `status.json` tracks pending, running, completed, and failed tasks. Different run IDs can run concurrently; reusing the same run ID is rejected. Raw simulator output remains in `mix/output/<config-id>/`.
+Generated outputs are ignored by Git. Lossless managed runs append each history row to both the compatibility log `mix/.history` and the selected `run-id` as soon as the simulation is configured. At the same time, `manifest.csv` records the `config_id` and its `paper_outputs` marker, replacing the prior row when a task is retried. `status.json` tracks pending, running, completed, and failed tasks. Different run IDs can run concurrently. Reusing a run ID requires `--resume`, which can attach to an active run, preserves recorded metadata, and skips running/completed tasks. Raw simulator output remains in `mix/output/<config-id>/`.
 
 Run the simulation stage inside Docker. The parse stage reads existing raw
 outputs and the plot stage uses the sibling Bazel workspace, so both can run on

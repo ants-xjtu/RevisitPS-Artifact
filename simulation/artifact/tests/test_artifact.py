@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -36,7 +37,76 @@ def load_lossless_plot_common():
     return module
 
 
+def load_spine_qlen_parser():
+    path = NS3_ROOT / "parser" / "parse_dcn_spine_qlen.py"
+    spec = importlib.util.spec_from_file_location("parse_dcn_spine_qlen", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_simulator_runner():
+    path = NS3_ROOT / "run.py"
+    spec = importlib.util.spec_from_file_location("artifact_simulator_runner", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(NS3_ROOT))
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.pop(0)
+    return module
+
+
 class RunnerSafetyTest(unittest.TestCase):
+    def test_all_workload_runners_prepare_one_shared_simulator(self) -> None:
+        for section in ("lossless", "lossy", "asymmetric"):
+            for workload in (
+                "datacenter-workloads",
+                "collective-communication-workloads",
+            ):
+                runner = ARTIFACT_DIR / section / workload / "run_experiments.sh"
+                source = runner.read_text(encoding="utf-8")
+                self.assertIn('artifact_prepare_simulator "$NS3_ROOT"', source)
+
+    def test_artifact_mode_runs_the_built_simulator_directly(self) -> None:
+        simulator_runner = load_simulator_runner()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            simulator = (
+                root / "build" / "scratch" / "network-load-balance"
+                / "network-load-balance"
+            )
+            simulator.parent.mkdir(parents=True)
+            simulator.write_text(
+                '#!/bin/sh\nprintf "%s\\n" "$1"\n', encoding="utf-8"
+            )
+            simulator.chmod(0o755)
+            config = root / "config with spaces.txt"
+            output = root / "config.log"
+            config.write_text("", encoding="utf-8")
+
+            previous_cwd = Path.cwd()
+            previous_mode = os.environ.get("ARTIFACT_DIRECT_RUN")
+            os.environ["ARTIFACT_DIRECT_RUN"] = "1"
+            os.chdir(root)
+            try:
+                command, rendered = simulator_runner.simulator_command(
+                    str(config), str(output)
+                )
+                status = simulator_runner.run_simulator(
+                    command, rendered, str(output)
+                )
+            finally:
+                os.chdir(previous_cwd)
+                if previous_mode is None:
+                    os.environ.pop("ARTIFACT_DIRECT_RUN", None)
+                else:
+                    os.environ["ARTIFACT_DIRECT_RUN"] = previous_mode
+
+            self.assertEqual(status, 0)
+            self.assertEqual(output.read_text(encoding="utf-8").strip(), str(config))
+            self.assertNotIn("waf --run", rendered)
+
     def test_temporary_plot_input_does_not_pollute_json_directory(self) -> None:
         plot_common = load_lossless_plot_common()
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -212,6 +282,62 @@ class ManifestTest(unittest.TestCase):
 
 
 class ParserPipelineTest(unittest.TestCase):
+    def test_spine_queue_parser_uses_flow_window_and_physical_ports(self) -> None:
+        parser = load_spine_qlen_parser()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = root / "config.txt"
+            config.write_text(
+                "FLOWGEN_START_TIME 2.0\nFLOWGEN_STOP_TIME 2.05\n",
+                encoding="utf-8",
+            )
+            start_ns, end_ns = parser.read_flowgen_window_ns(config)
+            self.assertEqual((start_ns, end_ns), (2_000_000_000, 2_050_000_000))
+
+            qlen = root / "qlen.txt"
+            qlen.write_text(
+                "1990000000,136,1,0,0,100\n"
+                "2000000000,136,1,0,0,200\n"
+                "2020000000,136,1,0,0,400\n"
+                "2050000000,136,1,0,0,600\n"
+                "2060000000,136,1,0,0,800\n"
+                "2020000000,136,9,0,0,9000\n"
+                "2020000000,128,1,0,0,7000\n",
+                encoding="utf-8",
+            )
+            parsed = parser.parse_qlen_file(
+                qlen,
+                [136],
+                "egress_qlen",
+                start_time_ns=start_ns,
+                end_time_ns=end_ns,
+                spine_port_ids=range(1, 9),
+            )
+
+            self.assertEqual(parsed["summary"]["avg_qlen_bytes"], 400)
+            self.assertEqual(parsed["summary"]["sample_count"], 3)
+            self.assertEqual(parsed["summary"]["window_start_ns"], start_ns)
+            self.assertEqual(parsed["summary"]["window_end_ns"], end_ns)
+
+    def test_table4_wrapper_requests_bounded_spine_samples(self) -> None:
+        script = (
+            NS3_ROOT / "parser" / "artifact" / "lossless"
+            / "parse_tbl04_lossless_avg_egress_queue.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('"--use_flowgen_window"', script)
+        self.assertIn('"--spine_port_count", 8', script)
+
+    def test_queue_monitor_does_not_emit_a_nonexistent_last_port(self) -> None:
+        main_cc = (
+            NS3_ROOT / "scratch" / "network-load-balance" / "main.cc"
+        ).read_text(encoding="utf-8")
+        self.assertIn("for (uint32_t j = 1; j < nports; j++)", main_cc)
+        self.assertNotIn("for (uint32_t j = 1; j <= nports; j++)", main_cc)
+        self.assertIn(
+            "now < Seconds(qlen_mon_start) || now > Seconds(qlen_mon_end)",
+            main_cc,
+        )
+
     def test_pfc_incast_parser_reads_alltoallv_group_size(self) -> None:
         parser_path = NS3_ROOT / "parser" / "parse_dcn_pfc_incast.py"
         spec = importlib.util.spec_from_file_location("parse_dcn_pfc_incast", parser_path)

@@ -9,11 +9,36 @@ artifact_tracking_enabled() {
     [[ -n "${ARTIFACT_RUN_DIR:-}" ]]
 }
 
+artifact_resume_enabled() {
+    [[ "${ARTIFACT_RESUME:-0}" == "1" ]]
+}
+
+artifact_prepare_simulator() {
+    local ns3_root="${1:-$PWD}"
+    local lock_file="${ns3_root}/build/.artifact-build.lock"
+
+    command -v flock >/dev/null 2>&1 || {
+        echo "ERROR: flock is required to coordinate simulator builds" >&2
+        return 1
+    }
+    mkdir -p "${ns3_root}/build" || return 1
+    (
+        flock -x 9
+        cd "$ns3_root" || exit 1
+        ./waf build --targets=network-load-balance
+    ) 9>"$lock_file" || return 1
+
+    export ARTIFACT_DIRECT_RUN=1
+    export LD_LIBRARY_PATH="${ns3_root}/build${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+}
+
 artifact_tracking_init() {
     local section="$1" workload="$2" expected="$3"
     artifact_tracking_enabled || return 0
 
-    python3 "$ARTIFACT_STATUS_TOOL" init \
+    local action="init"
+    artifact_resume_enabled && action="resume"
+    python3 "$ARTIFACT_STATUS_TOOL" "$action" \
         --run-dir "$ARTIFACT_RUN_DIR" \
         --section "$section" \
         --workload "$workload" \
@@ -26,6 +51,18 @@ artifact_tracking_init() {
 artifact_result_files_init() {
     local history_file="$1" manifest_file="$2"
     mkdir -p "$(dirname "$history_file")" "$(dirname "$manifest_file")" || return 1
+    if artifact_resume_enabled; then
+        [[ -s "$history_file" ]] || {
+            echo "ERROR: resume history is missing or empty: $history_file" >&2
+            return 1
+        }
+        [[ -s "$manifest_file" ]] || {
+            echo "ERROR: resume manifest is missing or empty: $manifest_file" >&2
+            return 1
+        }
+        export ARTIFACT_HISTORY_FILE="$history_file"
+        return 0
+    fi
     : > "$history_file" || return 1
     chmod 0644 "$history_file" || return 1
     python3 "$ARTIFACT_MANIFEST_TOOL" init "$manifest_file" || return 1
@@ -76,6 +113,13 @@ artifact_update_task() {
 artifact_run_background() {
     local task_id="$1" log_file="$2"
     shift 2
+
+    if artifact_tracking_enabled && artifact_resume_enabled && \
+        python3 "$ARTIFACT_STATUS_TOOL" task-skippable \
+            --run-dir "$ARTIFACT_RUN_DIR" --task-id "$task_id"; then
+        printf 'Skip running/completed task: %s\n' "$task_id"
+        return 0
+    fi
 
     (
         artifact_update_task "$task_id" running --log "$log_file"

@@ -51,6 +51,22 @@ class PlotSimAiJctAvgTest(unittest.TestCase):
             ],
         )
 
+        lossy_low, lossy_low_name, lossy_low_combos = (
+            module._get_combined_group_settings("lossy-low-incast")
+        )
+        lossy_high, lossy_high_name, lossy_high_combos = (
+            module._get_combined_group_settings("lossy-high-incast")
+        )
+        self.assertEqual(lossy_low_name, "lossy-low-incast")
+        self.assertEqual(lossy_low, low_categories)
+        self.assertIsNone(lossy_low_combos)
+        self.assertEqual(lossy_high_name, "lossy-high-incast")
+        self.assertEqual(lossy_high, high_categories)
+        self.assertEqual(
+            lossy_high_combos,
+            module.COMBINED_GROUP_CATEGORIES["4"],
+        )
+
     def test_combined_series_without_panel_points_is_omitted(self):
         module = load_module()
         workload_data = {
