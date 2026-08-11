@@ -21,9 +21,9 @@ except ImportError:
 desired_order_for_lossless = [
     "ECMP(NAK+GBN)",
     "ConWeave(NAK+GBN)",
+    "AR(RTO+GBN)",
     "DRILL(RTO+GBN)",
     "RPS(RTO+GBN)",
-    "AR(RTO+GBN)",
 ]
 
 desired_order_for_lossy = [

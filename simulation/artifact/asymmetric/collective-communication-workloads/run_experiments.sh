@@ -8,10 +8,18 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARTIFACT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 NS3_ROOT="$(cd "${ARTIFACT_DIR}/.." && pwd)"
-RESULTS_DIR="${ARTIFACT_DIR}/results/asymmetric/collective-communication-workloads"
-LOG_DIR="${RESULTS_DIR}/logs"
-HISTORY_FILE="${RESULTS_DIR}/extended.history"
-MANIFEST_FILE="${RESULTS_DIR}/extended_runs.csv"
+source "${ARTIFACT_DIR}/common/run_tracking.sh"
+if artifact_tracking_enabled; then
+    RESULTS_DIR="${ARTIFACT_RUN_DIR}"
+    LOG_DIR="${RESULTS_DIR}/logs"
+    HISTORY_FILE="${RESULTS_DIR}/history/all.history"
+    MANIFEST_FILE="${RESULTS_DIR}/manifest.csv"
+else
+    RESULTS_DIR="${ARTIFACT_DIR}/results/asymmetric/collective-communication-workloads"
+    LOG_DIR="${RESULTS_DIR}/logs"
+    HISTORY_FILE="${RESULTS_DIR}/extended.history"
+    MANIFEST_FILE="${RESULTS_DIR}/extended_runs.csv"
+fi
 
 MAX_JOBS=45
 PROCESS_PATTERN_TO_MONITOR="build/scratch/network-load-balance"
@@ -39,8 +47,8 @@ lb_label() {
 }
 
 run_if_slot_free() {
-    local log_file=$1
-    shift
+    local task_id=$1 log_file=$2
+    shift 2
     while [ "$(pgrep -fc -- "$PROCESS_PATTERN_TO_MONITOR")" -ge "$MAX_JOBS" ]; do
         local current_system_procs
         current_system_procs=$(pgrep -fc -- "$PROCESS_PATTERN_TO_MONITOR")
@@ -48,7 +56,7 @@ run_if_slot_free() {
         sleep 1
     done
     printf "%-100s\r" " "
-    "$@" > "$log_file" 2>&1 &
+    artifact_run_background "$task_id" "$log_file" "$@"
     sleep 1
 }
 
@@ -73,12 +81,10 @@ run_experiment_group() {
         algorithm=$(lb_label "$lb")
         local task_id="${recipe}__${topology}__${cdf}__g${ai_nodes_per_group}__${algorithm}__t${timeout_mode}"
         local log_file="${LOG_DIR}/${task_id}.log"
-        RUN_LOGS+=("$log_file"); RUN_RECIPES+=("$recipe"); RUN_OUTPUTS+=("$paper_outputs")
-        RUN_TOPOLOGIES+=("$topology"); RUN_WORKLOADS+=("$cdf")
-        RUN_GROUP_SIZES+=("$ai_nodes_per_group"); RUN_ALGORITHMS+=("$algorithm")
-        RUN_TIMEOUTS+=("$timeout_mode")
-
-        run_if_slot_free "$log_file" python3 run.py \
+        run_if_slot_free "$task_id" "$log_file" \
+            artifact_run_command "$MANIFEST_FILE" "$task_id" "$recipe" \
+            "$paper_outputs" "$topology" "$cdf" "$ai_nodes_per_group" \
+            "$algorithm" "$timeout_mode" python3 run.py \
             --cc "$cc" --lb "$lb" --pfc "$pfc" --irn "$irn" --armode "$armode" \
             --simul_time "$RUNTIME" --netload "$netload" --topo "$topology" \
             --cdf "$cdf" --error_rate "$error_rate" --flowgen_mode "$FLOWGEN" \
@@ -90,9 +96,9 @@ run_experiment_group() {
 }
 
 cd "$NS3_ROOT" || exit 1
+artifact_tracking_init asymmetric collective-communication-workloads 48 || exit 1
+artifact_result_files_init "$HISTORY_FILE" "$MANIFEST_FILE" || exit 1
 mkdir -p "$LOG_DIR"
-RUN_LOGS=(); RUN_RECIPES=(); RUN_OUTPUTS=(); RUN_TOPOLOGIES=()
-RUN_WORKLOADS=(); RUN_GROUP_SIZES=(); RUN_ALGORITHMS=(); RUN_TIMEOUTS=()
 
 cecho "BLUE" "Submitting asymmetric collective-communication experiments"
 
@@ -122,17 +128,15 @@ run_experiment_group "f17_allreduce_baseline" "figure17" "leafspine_L8_S16_100G_
 run_experiment_group "f17_allreduce_packet"   "figure17" "leafspine_L8_S16_100G_AsymBw20pct_R0.5_OS1" 11234742 "0.0" RingAllreduce dcqcn 0   1   ar     2       "$AI_RING_WINDOW" 320  100  0      100 8     none    rps adaptive drillgroup sglb
 
 cecho "GREEN" "All experiment groups submitted; waiting for background jobs..."
-wait
-: > "$HISTORY_FILE"
-printf '%s\n' "task_id,recipe,paper_outputs,config_id,topology,workload,group_size,algorithm,timeout_mode,command" > "$MANIFEST_FILE"
-for index in "${!RUN_LOGS[@]}"; do
-    log_file=${RUN_LOGS[$index]}
-    config_id=$(sed -n 's#.*Config filename:.*/mix/output/\([^/]*\)/config.txt.*#\1#p' "$log_file" | tail -n 1)
-    [ -n "$config_id" ] || { cecho "RED" "Cannot find config ID in ${log_file}"; exit 1; }
-    history_row=$(awk -F, -v id="$config_id" '$2 == id {print; exit}' mix/.history)
-    [ -n "$history_row" ] || { cecho "RED" "Cannot find history for ${config_id}"; exit 1; }
-    printf '%s\n' "$history_row" >> "$HISTORY_FILE"
-    task_id="${RUN_RECIPES[$index]}__${RUN_TOPOLOGIES[$index]}__${RUN_WORKLOADS[$index]}__g${RUN_GROUP_SIZES[$index]}__${RUN_ALGORITHMS[$index]}__t${RUN_TIMEOUTS[$index]}"
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$task_id" "${RUN_RECIPES[$index]}" "${RUN_OUTPUTS[$index]}" "$config_id" "${RUN_TOPOLOGIES[$index]}" "${RUN_WORKLOADS[$index]}" "${RUN_GROUP_SIZES[$index]}" "${RUN_ALGORITHMS[$index]}" "${RUN_TIMEOUTS[$index]}" "python3 run.py" >> "$MANIFEST_FILE"
-done
+task_failures=0
+artifact_wait_for_tasks || task_failures=$?
+if ((task_failures > 0)); then
+    cecho "RED" "${task_failures} collective experiment(s) failed"
+    artifact_tracking_finalize || true
+    exit 1
+fi
+if artifact_tracking_enabled && ! artifact_tracking_finalize; then
+    cecho "RED" "Collective run status is incomplete"
+    exit 1
+fi
 cecho "BLUE" "Completed. Next: ${SCRIPT_DIR}/parse_results.sh"

@@ -88,7 +88,8 @@ run_plot() {
 ((DRY_RUN)) || mkdir -p "$FIGURE_DIR"
 
 if want figure7; then
-    run_plot //main/plot_sample:plot_sim_ai_jct_avg "${STAGE}/figure7/parser/json-data-jct-vs-groupsize/test-trim" -o "${FIGURE_DIR}/figure7" --normalize --combined --all-combos
+    run_plot //main/plot_sample:plot_sim_ai_jct_avg "${STAGE}/figure7/parser/json-data-jct-vs-groupsize/test-trim" -o "${FIGURE_DIR}/figure7/a" --normalize --combined-group lossless-low-incast --raw-ytop 4 --all-combos
+    run_plot //main/plot_sample:plot_sim_ai_jct_avg "${STAGE}/figure7/parser/json-data-jct-vs-groupsize/test-trim" -o "${FIGURE_DIR}/figure7/b" --normalize --combined-group lossless-high-incast --raw-ytop 4 --all-combos
 fi
 
 pfc_json() {
@@ -111,11 +112,12 @@ if want figure8; then
         "$(pfc_json a2av32 157286400 AlltoallV)"
         "$(pfc_json a2av128 157286400 AlltoallV)"
     )
-    run_plot //main/plot_sample:plot_dcn_pfc_incast "${figure8_inputs[@]}" --output-prefix "${FIGURE_DIR}/figure8"
+    run_plot //main/plot_sample:plot_dcn_pfc_incast "${figure8_inputs[@]}" --output-prefix "${FIGURE_DIR}/figure8" --lb-mode AR
 fi
 
 if want figure9; then
-    run_plot //main/plot_sample:plot_dcn_pfc_incast "$(pfc_json a2av128 157286400 AlltoallV)" --output-prefix "${FIGURE_DIR}/figure9"
+    figure9_json="${STAGE}/figure9_leafspine_storage/parser/json-data-pfc-incast-workload/PFC_INCAST_DATA_TOPO_leaf_spine_L8_S16_100G_OS1_LOAD_80_FC_Lossless_TYPE_AliStorage2019_ERR_0.0.json"
+    run_plot //main/plot_sample:plot_dcn_pfc_incast "$figure9_json" --output-prefix "${FIGURE_DIR}/figure9" --queue-x-max 4
 fi
 
 if want figure10; then

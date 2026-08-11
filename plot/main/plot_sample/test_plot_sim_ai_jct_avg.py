@@ -19,6 +19,70 @@ def load_module():
 
 
 class PlotSimAiJctAvgTest(unittest.TestCase):
+    def test_lossless_combined_groups_match_figure7_panels(self):
+        module = load_module()
+
+        low_categories, low_name, low_combos = module._get_combined_group_settings(
+            "lossless-low-incast"
+        )
+        high_categories, high_name, high_combos = module._get_combined_group_settings(
+            "lossless-high-incast"
+        )
+
+        self.assertEqual(low_name, "lossless-low-incast")
+        self.assertEqual(low_combos, None)
+        self.assertEqual(
+            low_categories,
+            [
+                ("Alltoall", 8, "A2A"),
+                ("RingAllreduce", 8, "AllR"),
+                ("AlltoallV", 8, "A2Av-8"),
+                ("AlltoallV", 16, "A2Av-16"),
+            ],
+        )
+        self.assertEqual(high_name, "lossless-high-incast")
+        self.assertEqual(high_combos, None)
+        self.assertEqual(
+            high_categories,
+            [
+                ("AlltoallV", 32, "A2Av-32"),
+                ("AlltoallV", 64, "A2Av-64"),
+                ("AlltoallV", 128, "A2Av-128"),
+            ],
+        )
+
+    def test_combined_series_without_panel_points_is_omitted(self):
+        module = load_module()
+        workload_data = {
+            "AlltoallV": {
+                "data_series": [
+                    {
+                        "congestion_control": "NONE",
+                        "load_balancing_mode": "AR",
+                        "recovery_mechanism": "RTO+GBN",
+                        "timeout_mode": "0",
+                        "points": [
+                            {
+                                "group_size": 8,
+                                "jct_us": 10,
+                                "ideal_jct_us": 5,
+                            }
+                        ],
+                    }
+                ]
+            }
+        }
+
+        series = module._collect_combined_series(
+            workload_data,
+            module.COMBINED_GROUP_CATEGORIES["lossless-high-incast"],
+            dcqcn_only=False,
+            no_trimming=False,
+            combo_override=None,
+        )
+
+        self.assertEqual(series, {})
+
     def test_group4_combo_override_orders_ar_before_trim(self):
         module = load_module()
 

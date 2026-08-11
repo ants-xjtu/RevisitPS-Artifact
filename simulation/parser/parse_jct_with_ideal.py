@@ -337,8 +337,12 @@ def calculate_ideal_jct_for_workload(workload, pattern, message_size, topology="
             results = analyzer.calculate_optimal_jct(traffic_matrix, analysis_pattern)
             ideal_jct_us = results['ideal_jct_ms'] * 1000  # Convert ms to μs
 
-        elif workload in ["RingAllreduce", "TreeAllreduce"]:
-            # Use Tree AllReduce analyzer (works for both ring and tree)
+        elif workload == "RingAllreduce":
+            analyzer = TreeAllReduceAnalyzer(topo)
+            results = analyzer.calculate_ring_allreduce_jct(message_size, group_size)
+            ideal_jct_us = results['ideal_jct_ms'] * 1000
+
+        elif workload == "TreeAllreduce":
             analyzer = TreeAllReduceAnalyzer(topo)
             results = analyzer.calculate_tree_allreduce_jct(message_size, group_size)
             ideal_jct_us = results['optimal_jct_ms'] * 1000  # Convert ms to μs

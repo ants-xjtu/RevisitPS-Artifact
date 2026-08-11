@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import glob
+import re
 from matplotlib.ticker import ScalarFormatter
 
 # 导入项目提供的绘图函数库
@@ -74,6 +75,18 @@ def keep_selected_alltoallv_groups(series):
     if series.get("workload") != "AlltoallV":
         return True
     return str(series.get("groupsize")) in {"8", "32", "128"}
+
+
+def build_series_filter(load_balancing_mode=None):
+    def selected(series):
+        if not keep_selected_alltoallv_groups(series):
+            return False
+        return (
+            load_balancing_mode is None
+            or series_mode_label(series) == load_balancing_mode
+        )
+
+    return selected
 
 def series_plot_kwargs(series, include_mode=False):
     label = series_workload_label(series, include_mode=include_mode)
@@ -171,7 +184,24 @@ def merge_pfc_json_files(json_paths):
         data = load_pfc_json(json_path)
         if not data:
             continue
+        metadata = data.get("metadata", {})
+        group_size = metadata.get("group_size", metadata.get("groupsize"))
+        if group_size in (None, ""):
+            match = re.search(r"a2av(\d+)", os.path.basename(json_path), re.IGNORECASE)
+            if match:
+                group_size = match.group(1)
         for series in data.get("data_series", []):
+            series = dict(series)
+            metadata_fields = {
+                "workload": metadata.get("load_type"),
+                "groupsize": group_size,
+                "topology": metadata.get("topology"),
+                "network_load": metadata.get("network_load"),
+                "flow_control": metadata.get("flow_control"),
+            }
+            for key, value in metadata_fields.items():
+                if series.get(key) in (None, "") and value not in (None, ""):
+                    series[key] = str(value) if key == "groupsize" else value
             dedupe_key = (
                 series.get("workload"),
                 series.get("groupsize"),
@@ -187,7 +217,13 @@ def merge_pfc_json_files(json_paths):
             merged["data_series"].append(series)
     return merged
 
-def draw_pfc_plots_from_data(data, output_prefix, source_name, series_filter=None):
+def draw_pfc_plots_from_data(
+    data,
+    output_prefix,
+    source_name,
+    series_filter=None,
+    queue_x_max=None,
+):
     """
     从单个 JSON 文件为 PFC incast 数据绘制三张独立的 CDF 图表，并输出为 PDF。
     - Incast Flows per Event
@@ -271,6 +307,8 @@ def draw_pfc_plots_from_data(data, output_prefix, source_name, series_filter=Non
     if has_queue_data:
         apply_plot_style(p_queue, "Queue Size (MB) / PFC Event")
         p_queue.ax.set_xscale('linear')
+        if queue_x_max is not None:
+            p_queue.ax.set_xlim(0, queue_x_max)
         p_queue.ax.xaxis.set_major_formatter(ScalarFormatter())
         p_queue.ax.ticklabel_format(style='plain', axis='x')
         output_path_queue = f"{output_prefix}_queue_bytes.pdf"
@@ -280,7 +318,7 @@ def draw_pfc_plots_from_data(data, output_prefix, source_name, series_filter=Non
     else:
         print(f"ℹ️ 在 {source_name} 中没有找到 Queue Bytes 的数据，跳过绘图.")
 
-def draw_pfc_plots(json_path, output_prefix):
+def draw_pfc_plots(json_path, output_prefix, queue_x_max=None):
     data = load_pfc_json(json_path)
     if not data:
         return
@@ -289,6 +327,7 @@ def draw_pfc_plots(json_path, output_prefix):
         output_prefix,
         json_path,
         series_filter=keep_selected_alltoallv_groups,
+        queue_x_max=queue_x_max,
     )
 
 def main():
@@ -306,6 +345,18 @@ def main():
         type=str,
         default=None,
         help="多个 JSON 文件合并绘图时的输出前缀。"
+    )
+    parser.add_argument(
+        "--lb-mode",
+        type=str,
+        default=None,
+        help="只绘制指定负载均衡模式（例如 AR）。"
+    )
+    parser.add_argument(
+        "--queue-x-max",
+        type=float,
+        default=None,
+        help="Queue Size CDF 横轴上限（MB）。"
     )
     args = parser.parse_args()
 
@@ -325,7 +376,8 @@ def main():
             merged_data,
             output_prefix,
             ", ".join(json_files),
-            series_filter=keep_selected_alltoallv_groups,
+            series_filter=build_series_filter(args.lb_mode),
+            queue_x_max=args.queue_x_max,
         )
 
     elif os.path.isfile(args.input_paths[0]):
@@ -337,7 +389,7 @@ def main():
             output_dir, os.path.splitext(base_name)[0]
         )
         print(f"--- 正在处理 {json_file} ---")
-        draw_pfc_plots(json_file, output_prefix)
+        draw_pfc_plots(json_file, output_prefix, args.queue_x_max)
 
     elif os.path.isdir(args.input_paths[0]):
         # 目录模式
@@ -352,7 +404,7 @@ def main():
                 args.input_paths[0], os.path.splitext(base_name)[0]
             )
             print(f"--- 正在处理 {json_file} ---")
-            draw_pfc_plots(json_file, output_prefix)
+            draw_pfc_plots(json_file, output_prefix, args.queue_x_max)
         print("✅ 所有档案处理完毕！")
     else:
         print(f"❌ 错误: {args.input_paths[0]} 不是有效的档案或目录。")

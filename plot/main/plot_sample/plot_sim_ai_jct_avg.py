@@ -60,10 +60,6 @@ _TIMEOUT_SUFFIX_RE = _re.compile(r"\+1/\d+$")
 
 # Combined-mode x-axis categories: (load_type, group_size, display_label).
 COMBINED_CATEGORIES = [
-    # ("Alltoall", 8, "A2A"),
-    # ("RingAllreduce", 8, "AllR"),
-    # ("AlltoallV", 8, "A2Av-8"),
-    # ("AlltoallV", 16, "A2Av-16"),
     ("AlltoallV", 32, "A2Av-32"),
     ("AlltoallV", 64, "A2Av-64"),
     ("AlltoallV", 128, "A2Av-128"),
@@ -74,6 +70,13 @@ COMBINED_CATEGORIES = [
 # - "1", "2": placeholders for custom category groups (keep empty for now).
 COMBINED_GROUP_CATEGORIES = {
     "default": COMBINED_CATEGORIES,
+    "lossless-low-incast": [
+        ("Alltoall", 8, "A2A"),
+        ("RingAllreduce", 8, "AllR"),
+        ("AlltoallV", 8, "A2Av-8"),
+        ("AlltoallV", 16, "A2Av-16"),
+    ],
+    "lossless-high-incast": COMBINED_CATEGORIES,
     "1": [("ECMP",     "NAK+GBN",            "DCQCN"),
     ("ConWeave", "NAK+GBN",            "DCQCN"),
     ("DRILL",    "RTO+GBN",           "DCQCN"),
@@ -341,11 +344,8 @@ def _group_by_topo_fc(json_files):
     return groups
 
 
-def draw_combined(topo, fc, workload_data, output_dir, dcqcn_only, normalize,
-                  raw_ytop, raw_ystep, no_trimming, combined_group):
-    """Draw ONE bar chart per (topology, flow_control) combining AlltoAll,
-    RingAllreduce, and AlltoAllV (np=8, np=16) on the x-axis."""
-    combined_categories, resolved_group, combo_override = _get_combined_group_settings(combined_group)
+def _collect_combined_series(workload_data, combined_categories, dcqcn_only,
+                             no_trimming, combo_override):
     series_map = {}
     for i, (load_type, gs, _label) in enumerate(combined_categories):
         data = workload_data.get(load_type)
@@ -356,30 +356,57 @@ def draw_combined(topo, fc, workload_data, output_dir, dcqcn_only, normalize,
             if dcqcn_only and cc != "DCQCN":
                 continue
             lb = series.get("load_balancing_mode", "?")
-            rec = _effective_recovery(series.get("recovery_mechanism", "?"),
-                                      series.get("timeout_mode"))
+            rec = _effective_recovery(
+                series.get("recovery_mechanism", "?"),
+                series.get("timeout_mode"),
+            )
             if no_trimming and _is_trimming(rec):
                 continue
             if combo_override is not None:
                 wanted = _canonical_combo_for_match((lb, rec, cc))
-                if not any(_canonical_combo_for_match(combo) == wanted
-                           for combo in combo_override):
+                if not any(
+                    _canonical_combo_for_match(combo) == wanted
+                    for combo in combo_override
+                ):
                     continue
             elif not _combo_included(lb, rec, cc):
                 continue
-            key = _canonical_combo_for_series(lb, rec, cc)
-            entry = series_map.setdefault(key, [None] * len(combined_categories))
-            for pt in series.get("points", []):
-                if pt.get("group_size") != gs:
+
+            best = None
+            for point in series.get("points", []):
+                if point.get("group_size") != gs:
                     continue
-                mean = pt.get("jct_us")
-                ideal = pt.get("ideal_jct_us")
+                mean = point.get("jct_us")
+                ideal = point.get("ideal_jct_us")
                 if mean is None:
                     continue
-                val = (float(mean), float(ideal) if ideal else None)
-                prev = entry[i]
-                if prev is None or prev[0] > val[0]:
-                    entry[i] = val
+                value = (float(mean), float(ideal) if ideal else None)
+                if best is None or best[0] > value[0]:
+                    best = value
+            if best is None:
+                continue
+
+            key = _canonical_combo_for_series(lb, rec, cc)
+            entry = series_map.setdefault(
+                key, [None] * len(combined_categories)
+            )
+            if entry[i] is None or entry[i][0] > best[0]:
+                entry[i] = best
+    return series_map
+
+
+def draw_combined(topo, fc, workload_data, output_dir, dcqcn_only, normalize,
+                  raw_ytop, raw_ystep, no_trimming, combined_group):
+    """Draw ONE bar chart per (topology, flow_control) combining AlltoAll,
+    RingAllreduce, and AlltoAllV (np=8, np=16) on the x-axis."""
+    combined_categories, resolved_group, combo_override = _get_combined_group_settings(combined_group)
+    series_map = _collect_combined_series(
+        workload_data,
+        combined_categories,
+        dcqcn_only,
+        no_trimming,
+        combo_override,
+    )
 
     if not series_map:
         print(f"  [WARN] No drawable data for {topo} / {fc}")

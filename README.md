@@ -36,7 +36,11 @@ From the artifact root:
 
 ```bash
 docker build -t revisitps-sim:artifact -f simulation/Dockerfile simulation
-docker run --rm -it -v "$(pwd)":/artifact -w /artifact/simulation revisitps-sim:artifact bash
+docker run -dit --name revisitps-sim \
+  -v "$(pwd)":/artifact \
+  -w /artifact/simulation \
+  revisitps-sim:artifact bash
+docker exec -it revisitps-sim bash
 ```
 
 Inside the container:
@@ -47,6 +51,9 @@ Inside the container:
 ```
 
 Use `simulation/artifact/run_artifact.sh --dry-run` to inspect managed artifact commands without running experiments.
+Keep the detached container while experiments run; remove it after the run with
+`docker rm -f revisitps-sim`. Parsing and plotting do not require Docker and can
+run on the host after the simulation stage finishes.
 
 ## Managed Simulation Artifact
 
@@ -56,11 +63,22 @@ The managed workflow lives under `simulation/artifact/`:
 cd simulation
 ./artifact/run_artifact.sh --section all --stage all --dry-run
 ./artifact/run_artifact.sh --section lossless --stage all --run-id trial1
+./artifact/run_artifact.sh --section lossless --workload datacenter-workloads --stage parse --run-id trial1
+./artifact/run_artifact.sh --section lossless --stage status --run-id trial1
 ./artifact/run_artifact.sh --section lossy --stage parse --run-id trial1
 ./artifact/run_artifact.sh --section asymmetric --stage plot --run-id trial1
 ```
 
-Supported sections are `lossless`, `lossy`, `asymmetric`, and `all`. Supported stages are `run`, `parse`, `plot`, and `all`. Plot stages call Bazel targets under the sibling `plot/` workspace.
+Supported sections are `lossless`, `lossy`, `asymmetric`, and `all`. Workload
+filters are `datacenter-workloads`, `collective-communication-workloads`, and
+`all`. Supported stages are `run`, `parse`, `plot`, `status`, and `all`. Plot
+stages call Bazel targets under the sibling `plot/` workspace. Lossless managed
+runs write per-task progress and history directly under their `run-id`; use a
+different `run-id` for each concurrent invocation.
+Within each selected section, datacenter and collective-communication workload
+families run sequentially. A failed family does not skip the remaining family;
+the command returns nonzero after all selected families have been attempted.
+
 
 ## Testbed
 
@@ -71,7 +89,7 @@ The testbed component is under `testbed/`. It requires SSH access to servers and
 Generated build products, logs, traces, simulation results, parser outputs, figures, and Bazel outputs are ignored by the top-level `.gitignore`. Key locations are:
 
 - `simulation/mix/output/`: raw ns-3 run outputs.
-- `simulation/artifact/results/`: managed artifact histories, JSON, tables, and figures.
+- `simulation/artifact/results/`: managed status, per-run logs, one canonical history, JSON, tables, and final figures.
 - `simulation/logs/`: simulator batch logs.
 - `plot/bazel-*`: Bazel symlinks and outputs.
 - `testbed/logs/`, `testbed/data/`, `testbed/trace/`: testbed runtime outputs.

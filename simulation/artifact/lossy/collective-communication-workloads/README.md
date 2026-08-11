@@ -9,14 +9,14 @@ AI windows are 404000 bytes, RingAllReduce uses 1024000 bytes, and RTOs are
 `320 us`/`100 us`; AllToAllV uses the `zipfian_incast` pattern.
 
 ```bash
-./artifact/lossy/collective-communication-workloads/run_experiments.sh
-./artifact/lossy/collective-communication-workloads/parse_results.sh
-./artifact/lossy/collective-communication-workloads/plot_results.sh
+./artifact/run_artifact.sh --section lossy --workload collective-communication-workloads --stage run --run-id trial1
+./artifact/lossy/collective-communication-workloads/parse_results.sh --run-id trial1
+./artifact/lossy/collective-communication-workloads/plot_results.sh --run-id trial1
 ```
 
 `parse_results.sh` runs `parse_jct_with_ideal.py` to produce Figure 13
 JSON. Results are written below
-`artifact/results/lossy/collective-communication-workloads/`.
+`artifact/results/lossy/collective-communication-workloads/runs/trial1/`.
 
 `MAX_JOBS` is set near the top of `run_experiments.sh`. The runner follows
 `autorun_ai.sh`, with every CC workload parameter group listed explicitly.

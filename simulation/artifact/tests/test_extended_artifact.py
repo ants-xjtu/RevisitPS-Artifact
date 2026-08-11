@@ -22,7 +22,7 @@ import run_paper_matrix as extended  # noqa: E402
 class ExtendedMatrixTest(unittest.TestCase):
     def test_complete_matrix_and_minimal_shared_selections(self) -> None:
         tasks = extended.load_tasks(set(), set())
-        self.assertEqual(len(tasks), 181)
+        self.assertEqual(len(tasks), 186)
         self.assertEqual(len(extended.load_tasks(set(), {"figure7"})), 47)
         self.assertEqual(len(extended.load_tasks(set(), {"figure10"})), 1)
         self.assertEqual(len(extended.load_tasks(set(), {"figure16"})), 6)
@@ -84,7 +84,10 @@ class ExtendedMatrixTest(unittest.TestCase):
                     if len(fields) >= 3 and (
                         int(fields[0]) < n_host or int(fields[1]) < n_host
                     ):
-                        speeds.add(fields[2].removesuffix("Gbps"))
+                        link_speed = fields[2]
+                        speeds.add(
+                            link_speed[:-4] if link_speed.endswith("Gbps") else link_speed
+                        )
             self.assertEqual(speeds, {bw}, task.topology)
 
     def test_noar_commands_use_timeout_zero(self) -> None:
@@ -147,10 +150,10 @@ class ExtendedDryRunTest(unittest.TestCase):
             text=True,
             capture_output=True,
         )
-        self.assertIn("figure8_a2av8", result.stdout)
-        self.assertIn("figure8_a2av32", result.stdout)
-        self.assertIn("figure8_a2av128", result.stdout)
-        self.assertNotIn("figure8_a2av64", result.stdout)
+        self.assertIn("a2av8_pfc_incast.json", result.stdout)
+        self.assertIn("a2av32_pfc_incast.json", result.stdout)
+        self.assertIn("a2av128_pfc_incast.json", result.stdout)
+        self.assertNotIn("a2av64_pfc_incast.json", result.stdout)
 
     def test_group_plot_dry_runs_use_expected_plot_targets(self) -> None:
         groups = {
@@ -177,7 +180,7 @@ class ExtendedDryRunTest(unittest.TestCase):
             )
             selected = [
                 line for line in result.stdout.splitlines()
-                if line.startswith("BAZEL_COMMAND ")
+                if line.startswith("PLOT_COMMAND ")
             ]
             self.assertEqual(len(selected), expected)
             commands.extend(selected)
@@ -193,8 +196,8 @@ class ExtendedDryRunTest(unittest.TestCase):
 
 class ChapterLayoutTest(unittest.TestCase):
     GROUPS = {
-        ("lossless", "datacenter-workloads"): 20,
-        ("lossless", "collective-communication-workloads"): 50,
+        ("lossless", "datacenter-workloads"): 28,
+        ("lossless", "collective-communication-workloads"): 47,
         ("lossy", "datacenter-workloads"): 10,
         ("lossy", "collective-communication-workloads"): 47,
         ("asymmetric", "datacenter-workloads"): 26,
@@ -219,12 +222,101 @@ class ChapterLayoutTest(unittest.TestCase):
             plot_text = (root / "plot_results.sh").read_text(
                 encoding="utf-8"
             )
-            self.assertIn("parse_", parse_text)
-            self.assertNotIn("parse_", plot_text)
+            self.assertIn("--stage parse", parse_text)
+            self.assertIn("--stage plot", plot_text)
+            self.assertNotIn("--stage plot", parse_text)
+            self.assertNotIn("--stage parse", plot_text)
+
+    def test_figure_parsers_have_one_run_directory_interface(self) -> None:
+        for section in ("lossless", "lossy", "asymmetric"):
+            parser_dir = NS3_ROOT / "parser" / "artifact" / section
+            for script in parser_dir.glob("parse_*.py"):
+                text = script.read_text(encoding="utf-8")
+                self.assertIn("resolve_run_paths", text, script)
+                self.assertNotIn("args.stage_dir", text, script)
+                self.assertNotIn("args.selected_history", text, script)
+
+    def test_runners_record_figure_metadata_while_run_py_writes_history(self) -> None:
+        for section, workload in self.GROUPS:
+            script = (
+                ARTIFACT_DIR / section / workload / "run_experiments.sh"
+            ).read_text(encoding="utf-8")
+            self.assertIn("artifact_result_files_init", script)
+            self.assertIn("artifact_run_command", script)
+            self.assertIn("if artifact_tracking_enabled; then", script)
+            self.assertIn("artifact_tracking_init", script)
+            self.assertIn("artifact_wait_for_tasks", script)
+            self.assertIn("artifact_tracking_finalize", script)
+            self.assertNotIn("Config filename:", script)
+            self.assertNotIn("history_row=$(awk", script)
+
+        managed_runner = (ARTIFACT_DIR / "run_artifact.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertEqual(managed_runner.count("env ARTIFACT_RUN_DIR="), 6)
+
+    def test_lossless_figure8_references_belong_to_datacenter_runner(self) -> None:
+        datacenter = (
+            ARTIFACT_DIR / "lossless" / "datacenter-workloads"
+            / "run_experiments.sh"
+        ).read_text(encoding="utf-8")
+        collective = (
+            ARTIFACT_DIR / "lossless" / "collective-communication-workloads"
+            / "run_experiments.sh"
+        ).read_text(encoding="utf-8")
+
+        def references(script: str) -> list[list[str]]:
+            return [
+                shlex.split(line)
+                for line in script.splitlines()
+                if line.startswith('run_experiment_group "pfc_dcn_workloads"')
+            ]
+
+        datacenter_references = references(datacenter)
+        self.assertEqual(
+            {group[6] for group in datacenter_references},
+            {"FbHdp2015", "Solar2022", "AliStorage2019"},
+        )
+        self.assertEqual(references(collective), [])
+
+    def test_lossless_figure9_and_table5_use_leaf_spine_storage(self) -> None:
+        datacenter = (
+            ARTIFACT_DIR / "lossless" / "datacenter-workloads"
+            / "run_experiments.sh"
+        ).read_text(encoding="utf-8")
+        collective = (
+            ARTIFACT_DIR / "lossless" / "collective-communication-workloads"
+            / "run_experiments.sh"
+        ).read_text(encoding="utf-8")
+        orchestrator = (ARTIFACT_DIR / "run_artifact.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            '"figure9;table5" "leaf_spine_L8_S16_100G_OS1" 80 "0.000" '
+            "AliStorage2019",
+            datacenter,
+        )
+        self.assertNotIn("table5", collective)
+        self.assertIn(
+            "parse_one lossless datacenter-workloads "
+            "parse_fig09_lossless_queue_per_pfc_event.py",
+            orchestrator,
+        )
+        self.assertIn(
+            "plot_one lossless datacenter-workloads "
+            "plot_fig09_lossless_queue_per_pfc_event.py",
+            orchestrator,
+        )
+        self.assertIn(
+            "parse_one lossless datacenter-workloads "
+            "parse_tbl05_lossless_spine_pause_balance.py",
+            orchestrator,
+        )
 
     def test_explicit_runner_lines_partition_the_complete_artifact(self) -> None:
         parameter_counts = {
-            ("lossless", "datacenter-workloads"): 13,
+            ("lossless", "datacenter-workloads"): 15,
             ("lossless", "collective-communication-workloads"): 18,
             ("lossy", "datacenter-workloads"): 16,
             ("lossy", "collective-communication-workloads"): 18,

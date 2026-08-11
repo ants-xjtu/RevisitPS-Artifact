@@ -15,9 +15,11 @@ f7_a2av_high_base,figure7;figure8,leaf_spine_L8_S16_400G_OS1,AlltoallV,32,ECMP;C
 f7_a2av_high_packet,figure7;figure8,leaf_spine_L8_S16_400G_OS1,AlltoallV,32,DRILL;RPS;AR,dcqcn,1,0,0,400,0.32,target_recv,157286400,404000,4000,4000,zipfian_incast
 f7_a2av_high_base,figure7,leaf_spine_L8_S16_400G_OS1,AlltoallV,64,ECMP;ConWeave,dcqcn,1,0,0,400,0.32,target_recv,157286400,404000,4000,4000,zipfian_incast
 f7_a2av_high_packet,figure7,leaf_spine_L8_S16_400G_OS1,AlltoallV,64,DRILL;RPS;AR,dcqcn,1,0,0,400,0.32,target_recv,157286400,404000,4000,4000,zipfian_incast
-f7_a2av_128_base,figure7;figure8;figure9;table5,leaf_spine_L8_S16_400G_OS1,AlltoallV,128,ECMP;ConWeave,dcqcn,1,0,0,400,0.32,target_recv,157286400,404000,4000,4000,zipfian_incast
-f7_a2av_128_packet,figure7;figure8;figure9;table5,leaf_spine_L8_S16_400G_OS1,AlltoallV,128,DRILL;RPS;AR,dcqcn,1,0,0,400,0.32,target_recv,157286400,404000,4000,4000,zipfian_incast
+f7_a2av_128_base,figure7;figure8,leaf_spine_L8_S16_400G_OS1,AlltoallV,128,ECMP;ConWeave,dcqcn,1,0,0,400,0.32,target_recv,157286400,404000,4000,4000,zipfian_incast
+f7_a2av_128_packet,figure7;figure8,leaf_spine_L8_S16_400G_OS1,AlltoallV,128,DRILL;RPS;AR,dcqcn,1,0,0,400,0.32,target_recv,157286400,404000,4000,4000,zipfian_incast
 pfc_dcn_workloads,figure8,leaf_spine_L8_S16_100G_OS1,FbHdp2015;Solar2022;AliStorage2019,1,AR,dcqcn,1,0,0,100,0,percent,80,104000,4096,4096,uniform
+f9_t5_base,figure9;table5,leaf_spine_L8_S16_100G_OS1,AliStorage2019,1,ECMP;ConWeave,dcqcn,1,0,0,100,0,percent,80,104000,4000,4000,uniform
+f9_t5_packet,figure9;table5,leaf_spine_L8_S16_100G_OS1,AliStorage2019,1,DRILL;RPS;AR,dcqcn,1,0,0,100,0,percent,80,104000,4000,4000,uniform
 f11_baseline,figure11,leaf_spine_L8_S16_100G_OS1,AliStorage2019,1,ECMP;ConWeave,dcqcn,0,1,0,100,0,percent,80,104000,320,100,uniform
 f11_ar_rto,figure11,leaf_spine_L8_S16_100G_OS1,AliStorage2019,1,AR,dcqcn,0,1,2,100,0,percent,80,104000,320,100,uniform
 f11_ar_trim,figure11,leaf_spine_L8_S16_100G_OS1,AliStorage2019,1,AR,dcqcn,0,2,0,100,0,percent,80,104000,320,100,uniform

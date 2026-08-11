@@ -37,13 +37,25 @@ not part of the Table 4 reproduction path.
 
 ## Internal interfaces
 
-`parse_paper_matrix.sh` calls the original parser programs and keeps JSON
-artifact-local. The plot adapters never invoke parsers. Extended parse and
-plot adapters accept repeatable `--figure` options; user-facing wrappers fix
-these options to the paper outputs owned by their directory.
+Figure-specific wrappers under `simulation/parser/artifact/` select manifest
+rows and invoke the original parser programs in temporary workspaces. Public
+`parse_results.sh` and `plot_results.sh` scripts forward their section and
+workload to `run_artifact.sh`. The older matrix adapters remain only for
+compatibility and are not part of the managed workflow.
+
+The original `mix/.history` row layout is a compatibility interface and has no
+paper-output column. Each runner therefore writes a sidecar manifest containing
+`paper_outputs`. The runner passes this metadata into `run.py`, which appends
+the manifest row as soon as it generates the `config_id` and writes the history
+row. `run_manifest.py` locks concurrent CSV appends, and `select_history.py`
+joins the manifest to history by `config_id`. Parser wrappers must use this
+join instead of reconstructing Figure/Table membership from positional history
+fields.
 
 No shared script deletes `mix/output`. Existing parsers and plot workspace sources
 are read-only dependencies.
 
-Figures 4--6 and Table 4 are intentionally self-contained under
-`artifact/lossless/datacenter-workloads/`; see that directory's README.
+Figures 4--6 and Table 4 are self-contained under
+`artifact/lossless/datacenter-workloads/`. That directory also owns the three
+traditional-workload references consumed by the cross-workload Figure 8
+parser; see its README.

@@ -57,9 +57,32 @@ def parse_raw_pfc_log(filename):
                 print(f"Warning: Could not parse line in {filename}: '{line}'. Error: {e}")
     return stats
 
+
+def get_group_size(config_id, output_dir, load_type):
+    if load_type != "AlltoallV":
+        return 1
+    message_sizes = os.path.join(
+        output_dir, config_id, f"{config_id}_alltoallv_msg_sizes.txt"
+    )
+    if not os.path.exists(message_sizes):
+        return None
+    with open(message_sizes, "r") as handle:
+        for line in handle:
+            match = re.match(r"# Group 0:\s+(\d+) nodes", line)
+            if match:
+                return int(match.group(1))
+            if line.strip() and not line.startswith("#"):
+                break
+    return None
+
 def main():
     parser = argparse.ArgumentParser(description='Parse DOWNLINK PFC incast events and save to JSON files.')
     parser.add_argument('history_file', type=str, help='Path to the history file to process.')
+    parser.add_argument(
+        '--group-by-group-size',
+        action='store_true',
+        help='Keep collective group sizes in separate JSON files.',
+    )
     args = parser.parse_args()
 
     file_dir = getFilePath()
@@ -106,10 +129,21 @@ def main():
                 
                 if flow_control == "Lossless":
                     key = (topo, netload, flow_control, load_type, error_rate)
+                    group_size = None
+                    if args.group_by_group_size:
+                        group_size = get_group_size(config_id, output_dir, load_type)
+                        if group_size is None:
+                            print(
+                                f"Warning: Could not infer group size for config "
+                                f"{config_id}. Skipping."
+                            )
+                            continue
+                        key = (*key, group_size)
                     entry_details = {
                         "config_id": config_id,
                         "lb_mode": lb_mode_str,
                         "recovery": recovery_label,
+                        "group_size": group_size,
                     }
                     map_key_to_config[key].append(entry_details)
             except (ValueError, IndexError) as e:
@@ -125,6 +159,8 @@ def main():
             },
             "data_series": []
         }
+        if args.group_by_group_size:
+            incast_group_data["metadata"]["group_size"] = k[5]
 
         for entry in v_configs:
             config_id = entry["config_id"]
@@ -160,6 +196,8 @@ def main():
                     "queue_bytes_per_event": pfc_data['queue_bytes']
                 }
             }
+            if args.group_by_group_size:
+                series_data["groupsize"] = entry["group_size"]
             incast_group_data["data_series"].append(series_data)
         
         if not incast_group_data["data_series"]:
@@ -167,7 +205,8 @@ def main():
             continue
             
         # --- Step 3: Save the collected data to a JSON file ---
-        json_filename = os.path.join(json_dir, f"PFC_INCAST_DATA_TOPO_{k[0]}_LOAD_{k[1]}_FC_{k[2]}_TYPE_{k[3]}_ERR_{k[4]}.json")
+        group_suffix = f"_GROUP_{k[5]}" if args.group_by_group_size else ""
+        json_filename = os.path.join(json_dir, f"PFC_INCAST_DATA_TOPO_{k[0]}_LOAD_{k[1]}_FC_{k[2]}_TYPE_{k[3]}_ERR_{k[4]}{group_suffix}.json")
         print(f"Saving PFC Incast data to: {json_filename}")
         with open(json_filename, 'w') as f:
             json.dump(incast_group_data, f, indent=4)

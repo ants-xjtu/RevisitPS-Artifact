@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 from genericpath import exists
+import fcntl
 import subprocess
 import os
 import time
@@ -14,9 +15,20 @@ import os
 import argparse
 from datetime import date
 
+from artifact.common.run_manifest import append_runtime_manifest
+
 # randomID
 random.seed(int(datetime.now().timestamp()))
 MAX_RAND_RANGE = 1000000000
+
+
+def append_history(path, content):
+    """Append one complete history record without interleaving writers."""
+    with open(path, "a") as history:
+        fcntl.flock(history, fcntl.LOCK_EX)
+        history.write(content)
+        history.flush()
+        fcntl.flock(history, fcntl.LOCK_UN)
 
 # config template
 # MODIFICATION START: Replaced the static ENABLE_QCN line with a placeholder
@@ -624,9 +636,6 @@ def main():
             print("Input traffic file with load:{load:.2f}, cdf:{cdf}, n_host:{n_host} already exists".format(
                 load=hostload, cdf=cdf, n_host=n_host))
         else:  # make the input traffic file with file locking
-            import fcntl
-            import time
-
             # Try to acquire lock for traffic generation
             try:
                 lock_fd = os.open(lock_file_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -762,7 +771,8 @@ def main():
     simulday = datetime.now().strftime("%m/%d/%y")
     # MODIFICATION START: Added irn_rto_high and irn_rto_low to the history log
     with open("./mix/.history", "a") as history:
-        history.write("{simulday},{config_ID},{cc_mode},{lb_mode},{ar_mode},{cwh_tx_expiry_time},{cwh_extra_reply_deadline},{cwh_path_pause_time},{cwh_extra_voq_flush_time},{cwh_default_voq_waiting_time},{pfc},{irn},{has_win},{var_win},{window_size},{topo},{bw},{cdf},{load},{error_rate},{time},{timeout_slowstart_mode},{irn_rto_high},{irn_rto_low}\n".format(
+        fcntl.flock(history, fcntl.LOCK_EX)
+        history_row = "{simulday},{config_ID},{cc_mode},{lb_mode},{ar_mode},{cwh_tx_expiry_time},{cwh_extra_reply_deadline},{cwh_path_pause_time},{cwh_extra_voq_flush_time},{cwh_default_voq_waiting_time},{pfc},{irn},{has_win},{var_win},{window_size},{topo},{bw},{cdf},{load},{error_rate},{time},{timeout_slowstart_mode},{irn_rto_high},{irn_rto_low}\n".format(
             simulday=simulday,
             config_ID=config_ID,
             cc_mode=cc_mode,
@@ -787,7 +797,14 @@ def main():
             timeout_slowstart_mode=args.timeout_slowstart_mode,
             irn_rto_high=irn_rto_high,
             irn_rto_low=irn_rto_low
-        ))
+        )
+        history.write(history_row)
+        history.flush()
+        fcntl.flock(history, fcntl.LOCK_UN)
+    artifact_history_file = os.environ.get("ARTIFACT_HISTORY_FILE")
+    if artifact_history_file:
+        append_history(artifact_history_file, history_row)
+    append_runtime_manifest(config_ID)
     # MODIFICATION END
 
     # 1 BDP calculation
@@ -909,17 +926,27 @@ def main():
     output_log = config_name.replace(".txt", ".log")
     run_command = "./waf --run 'network-load-balance {config_name}' > {output_log} 2>&1".format(
         config_name=config_name, output_log=output_log)
-    with open("./mix/.history", "a") as history:
-        history.write(run_command + "\n")
-        history.write(
-            "./waf --run 'network-load-balance' --command-template='gdb --args %s {config_name}'\n".format(
-                config_name=config_name)
+    append_history(
+        "./mix/.history",
+        run_command + "\n"
+        + "./waf --run 'network-load-balance' --command-template='gdb --args %s {config_name}'\n".format(
+            config_name=config_name
         )
-        history.write("\n")
+        + "\n",
+    )
 
     print(run_command)
-    os.system("./waf --run 'network-load-balance {config_name}' > {output_log} 2>&1".format(
-        config_name=config_name, output_log=output_log))
+    simulation_status = os.system(
+        "./waf --run 'network-load-balance {config_name}' > {output_log} 2>&1".format(
+            config_name=config_name, output_log=output_log
+        )
+    )
+    if simulation_status != 0:
+        raise RuntimeError(
+            "Simulation failed for config {} with wait status {}".format(
+                config_ID, simulation_status
+            )
+        )
 
     ####################################################
     #                 Analyze the output FCT           #

@@ -11,7 +11,10 @@ from __future__ import annotations
 import argparse
 import shutil
 import subprocess
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 
 def monorepo_root() -> Path:
@@ -47,3 +50,25 @@ def first_pdf(directory: Path, pattern: str) -> Path:
     if not matches:
         raise SystemExit(f"ERROR: no PDF matched {directory / pattern}")
     return matches[0]
+
+
+@contextmanager
+def temporary_workdir(label: str, *, dry_run: bool = False) -> Iterator[Path]:
+    if dry_run:
+        yield Path("/tmp") / f"revisitps-plot-{label}"
+        return
+    with tempfile.TemporaryDirectory(prefix=f"revisitps-plot-{label}-") as temp_dir:
+        yield Path(temp_dir)
+
+
+@contextmanager
+def temporary_input_dir(
+    input_dir: Path, label: str, *, dry_run: bool = False
+) -> Iterator[Path]:
+    with temporary_workdir(label, dry_run=dry_run) as workdir:
+        staged = workdir / "input"
+        if not dry_run:
+            if not input_dir.is_dir():
+                raise SystemExit(f"ERROR: missing plot input directory: {input_dir}")
+            shutil.copytree(input_dir, staged)
+        yield staged

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# Lossless collective-communication workloads: Figures 7--10 and Table 5
+# Lossless collective-communication workloads: Figures 7, 8, and 10 and Table 5
 # Reference: autorun_ai.sh
 #
 # Every experiment is listed explicitly at the bottom. Parameter order is
@@ -11,10 +11,18 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARTIFACT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 NS3_ROOT="$(cd "${ARTIFACT_DIR}/.." && pwd)"
-RESULTS_DIR="${ARTIFACT_DIR}/results/lossless/collective-communication-workloads"
-LOG_DIR="${RESULTS_DIR}/logs"
-HISTORY_FILE="${RESULTS_DIR}/extended.history"
-MANIFEST_FILE="${RESULTS_DIR}/extended_runs.csv"
+source "${ARTIFACT_DIR}/common/run_tracking.sh"
+if artifact_tracking_enabled; then
+    RESULTS_DIR="${ARTIFACT_RUN_DIR}"
+    LOG_DIR="${RESULTS_DIR}/logs"
+    HISTORY_FILE="${RESULTS_DIR}/history/all.history"
+    MANIFEST_FILE="${RESULTS_DIR}/manifest.csv"
+else
+    RESULTS_DIR="${ARTIFACT_DIR}/results/lossless/collective-communication-workloads"
+    LOG_DIR="${RESULTS_DIR}/logs"
+    HISTORY_FILE="${RESULTS_DIR}/extended.history"
+    MANIFEST_FILE="${RESULTS_DIR}/extended_runs.csv"
+fi
 
 MAX_JOBS=45
 PROCESS_PATTERN_TO_MONITOR="build/scratch/network-load-balance"
@@ -47,8 +55,9 @@ lb_label() {
 }
 
 run_if_slot_free() {
-    local log_file=$1
-    shift
+    local task_id=$1
+    local log_file=$2
+    shift 2
     while [ "$(pgrep -fc -- "$PROCESS_PATTERN_TO_MONITOR")" -ge "$MAX_JOBS" ]; do
         local current_system_procs
         current_system_procs=$(pgrep -fc -- "$PROCESS_PATTERN_TO_MONITOR")
@@ -56,7 +65,7 @@ run_if_slot_free() {
         sleep 1
     done
     printf "%-100s\r" " "
-    "$@" > "$log_file" 2>&1 &
+    artifact_run_background "$task_id" "$log_file" "$@"
     sleep 1
 }
 
@@ -96,15 +105,6 @@ run_experiment_group() {
         local task_id="${recipe}__${topology}__${cdf}__g${ai_nodes_per_group}__${algorithm}__t${timeout_mode}"
         local log_file="${LOG_DIR}/${task_id}.log"
 
-        RUN_LOGS+=("$log_file")
-        RUN_RECIPES+=("$recipe")
-        RUN_OUTPUTS+=("$paper_outputs")
-        RUN_TOPOLOGIES+=("$topology")
-        RUN_WORKLOADS+=("$cdf")
-        RUN_GROUP_SIZES+=("$ai_nodes_per_group")
-        RUN_ALGORITHMS+=("$algorithm")
-        RUN_TIMEOUTS+=("$timeout_mode")
-
         local command=(
             python3 run.py
             --cc "$cc" --lb "$lb" --pfc "$pfc" --irn "$irn" --armode "$armode"
@@ -120,20 +120,17 @@ run_experiment_group() {
         if [[ "$cdf" == "AlltoallV" ]]; then
             command+=(--netload_pattern "$pattern")
         fi
-        run_if_slot_free "$log_file" "${command[@]}"
+        run_if_slot_free "$task_id" "$log_file" \
+            artifact_run_command "$MANIFEST_FILE" "$task_id" "$recipe" \
+            "$paper_outputs" "$topology" "$cdf" "$ai_nodes_per_group" \
+            "$algorithm" "$timeout_mode" "${command[@]}"
     done
 }
 
 cd "$NS3_ROOT" || exit 1
+artifact_tracking_init lossless collective-communication-workloads 47 || exit 1
+artifact_result_files_init "$HISTORY_FILE" "$MANIFEST_FILE" || exit 1
 mkdir -p "$LOG_DIR"
-RUN_LOGS=()
-RUN_RECIPES=()
-RUN_OUTPUTS=()
-RUN_TOPOLOGIES=()
-RUN_WORKLOADS=()
-RUN_GROUP_SIZES=()
-RUN_ALGORITHMS=()
-RUN_TIMEOUTS=()
 
 cecho "BLUE" "Submitting lossless collective-communication experiments"
 
@@ -159,28 +156,21 @@ run_experiment_group "f7_a2av_high_packet"  "figure7;figure8"             "$AI_L
 run_experiment_group "f7_a2av_high_base"    "figure7"                     "$AI_LEAF_TOPOLOGY" 157286400 "0.0" AlltoallV     dcqcn   1   0   noar   0       "$AI_LEAF_WINDOW" 4000 4000 0.32   400 64    zipfian_incast  fecmp conweave
 run_experiment_group "f7_a2av_high_packet"  "figure7"                     "$AI_LEAF_TOPOLOGY" 157286400 "0.0" AlltoallV     dcqcn   1   0   ar     0       "$AI_LEAF_WINDOW" 4000 4000 0.32   400 64    zipfian_incast  drill rps adaptive
 
-run_experiment_group "f7_a2av_128_base"     "figure7;figure8;figure9;table5" "$AI_LEAF_TOPOLOGY" 157286400 "0.0" AlltoallV   dcqcn   1   0   noar   0       "$AI_LEAF_WINDOW" 4000 4000 0.32   400 128   zipfian_incast  fecmp conweave
-run_experiment_group "f7_a2av_128_packet"   "figure7;figure8;figure9;table5" "$AI_LEAF_TOPOLOGY" 157286400 "0.0" AlltoallV   dcqcn   1   0   ar     0       "$AI_LEAF_WINDOW" 4000 4000 0.32   400 128   zipfian_incast  drill rps adaptive
-
-# Figure 8 datacenter reference panels.
-run_experiment_group "pfc_dcn_workloads"    "figure8"                     "leaf_spine_L8_S16_100G_OS1" 80        "0.0" FbHdp2015     dcqcn   1   0   ar     0       104000 4096 4096 0      100 1     none             adaptive
-run_experiment_group "pfc_dcn_workloads"    "figure8"                     "leaf_spine_L8_S16_100G_OS1" 80        "0.0" Solar2022     dcqcn   1   0   ar     0       104000 4096 4096 0      100 1     none             adaptive
-run_experiment_group "pfc_dcn_workloads"    "figure8"                     "leaf_spine_L8_S16_100G_OS1" 80        "0.0" AliStorage2019 dcqcn  1   0   ar     0       104000 4096 4096 0      100 1     none             adaptive
+run_experiment_group "f7_a2av_128_base"     "figure7;figure8" "$AI_LEAF_TOPOLOGY" 157286400 "0.0" AlltoallV   dcqcn   1   0   noar   0       "$AI_LEAF_WINDOW" 4000 4000 0.32   400 128   zipfian_incast  fecmp conweave
+run_experiment_group "f7_a2av_128_packet"   "figure7;figure8" "$AI_LEAF_TOPOLOGY" 157286400 "0.0" AlltoallV   dcqcn   1   0   ar     0       "$AI_LEAF_WINDOW" 4000 4000 0.32   400 128   zipfian_incast  drill rps adaptive
 
 cecho "GREEN" "All experiment groups submitted; waiting for background jobs..."
-wait
+task_failures=0
+artifact_wait_for_tasks || task_failures=$?
+if ((task_failures > 0)); then
+    cecho "RED" "${task_failures} collective experiment(s) failed"
+    artifact_tracking_finalize || true
+    exit 1
+fi
 
-: > "$HISTORY_FILE"
-printf '%s\n' "task_id,recipe,paper_outputs,config_id,topology,workload,group_size,algorithm,timeout_mode,command" > "$MANIFEST_FILE"
-for index in "${!RUN_LOGS[@]}"; do
-    log_file=${RUN_LOGS[$index]}
-    config_id=$(sed -n 's#.*Config filename:.*/mix/output/\([^/]*\)/config.txt.*#\1#p' "$log_file" | tail -n 1)
-    [ -n "$config_id" ] || { cecho "RED" "Cannot find config ID in ${log_file}"; exit 1; }
-    history_row=$(awk -F, -v id="$config_id" '$2 == id {print; exit}' mix/.history)
-    [ -n "$history_row" ] || { cecho "RED" "Cannot find history for ${config_id}"; exit 1; }
-    printf '%s\n' "$history_row" >> "$HISTORY_FILE"
-    task_id="${RUN_RECIPES[$index]}__${RUN_TOPOLOGIES[$index]}__${RUN_WORKLOADS[$index]}__g${RUN_GROUP_SIZES[$index]}__${RUN_ALGORITHMS[$index]}__t${RUN_TIMEOUTS[$index]}"
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$task_id" "${RUN_RECIPES[$index]}" "${RUN_OUTPUTS[$index]}" "$config_id" "${RUN_TOPOLOGIES[$index]}" "${RUN_WORKLOADS[$index]}" "${RUN_GROUP_SIZES[$index]}" "${RUN_ALGORITHMS[$index]}" "${RUN_TIMEOUTS[$index]}" "python3 run.py" >> "$MANIFEST_FILE"
-done
+if artifact_tracking_enabled && ! artifact_tracking_finalize; then
+    cecho "RED" "Collective run status is incomplete"
+    exit 1
+fi
 
 cecho "BLUE" "Completed. Next: ${SCRIPT_DIR}/parse_results.sh"

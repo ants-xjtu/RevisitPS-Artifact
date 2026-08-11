@@ -9,6 +9,7 @@ import glob
 import csv # 导入CSV模块
 
 FONT_FAMILY = "DejaVu Sans"
+PAPER_SERIES_ORDER = ["RPS", "DRILL", "AR"]
 
 # 确保可以导入项目提供的绘图函式库
 try:
@@ -18,6 +19,15 @@ except ImportError:
     exit(1)
 
 # --- 辅助函数 ---
+
+def order_data_series(data_series_list):
+    order = {name: index for index, name in enumerate(PAPER_SERIES_ORDER)}
+    return sorted(
+        data_series_list,
+        key=lambda series: order.get(
+            series.get("load_balancing_mode"), len(PAPER_SERIES_ORDER)
+        ),
+    )
 
 def get_percentile_from_aggregated(aggregated_data, percentile):
     """
@@ -91,7 +101,7 @@ def set_black_text_ticks_and_frame(ax):
 
 def output_table_data(json_data, output_path):
     """将关键统计数据输出到 CSV 文件中"""
-    data_series_list = json_data.get("data_series", [])
+    data_series_list = order_data_series(json_data.get("data_series", []))
     if not data_series_list:
         return
     header = [
@@ -131,7 +141,7 @@ def output_table_data(json_data, output_path):
 def draw_ooo_rate_plot(json_data, output_path):
     """从JSON数据绘制 OOO Packet Rate 柱状图 (使用 BarPlot 类)"""
     metadata = json_data.get("metadata", {})
-    data_series_list = json_data.get("data_series", [])
+    data_series_list = order_data_series(json_data.get("data_series", []))
     if not data_series_list:
         return
     labels = [f"{s.get('load_balancing_mode', 'N/A')}({s.get('recovery_mechanism', 'N/A')})" for s in data_series_list]
@@ -154,7 +164,7 @@ def draw_ooo_rate_plot(json_data, output_path):
 def draw_reorder_distance_cdf_plot(json_data, output_path):
     """从JSON数据绘制优化后的 Reordering Distance CDF 图"""
     metadata = json_data.get("metadata", {})
-    data_series_list = json_data.get("data_series", [])
+    data_series_list = order_data_series(json_data.get("data_series", []))
     if not data_series_list:
         return
 

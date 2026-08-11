@@ -10,14 +10,14 @@ The runs use 100 Gbps, PFC disabled, DCQCN, `320 us` large-message RTO, and
 paper's ECMP/ConWeave baselines and AR RTO/trimming variants.
 
 ```bash
-./artifact/lossy/datacenter-workloads/run_experiments.sh
-./artifact/lossy/datacenter-workloads/parse_results.sh
-./artifact/lossy/datacenter-workloads/plot_results.sh
+./artifact/run_artifact.sh --section lossy --workload datacenter-workloads --stage run --run-id trial1
+./artifact/lossy/datacenter-workloads/parse_results.sh --run-id trial1
+./artifact/lossy/datacenter-workloads/plot_results.sh --run-id trial1
 ```
 
 `parse_results.sh` runs `parse_dcn_fct_rto.py` and produces the Figure 11
 and Figure 12 JSON before plotting. Results are written below
-`artifact/results/lossy/datacenter-workloads/`.
+`artifact/results/lossy/datacenter-workloads/runs/trial1/`.
 
 `MAX_JOBS` is set near the top of `run_experiments.sh`. All Figure 11--12
 parameter groups are listed directly in that script in `autorun_new.sh` form.

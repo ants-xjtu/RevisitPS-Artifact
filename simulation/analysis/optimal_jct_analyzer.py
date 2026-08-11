@@ -33,6 +33,8 @@ class NetworkTopology:
             with open(f"config/{self.topo_file}.txt", 'r') as f:
                 content = f.read()
 
+            lines = content.splitlines()
+
             # Extract number of servers and switches
             server_match = re.search(r'(\d+)\s+#servers', content)
             switch_match = re.search(r'(\d+)\s+#switches', content)
@@ -40,15 +42,28 @@ class NetworkTopology:
             if server_match and switch_match:
                 self.num_servers = int(server_match.group(1))
                 self.num_switches = int(switch_match.group(1))
+            elif lines:
+                header = lines[0].split()
+                if len(header) >= 2 and all(value.isdigit() for value in header[:2]):
+                    num_nodes, self.num_switches = map(int, header[:2])
+                    self.num_servers = num_nodes - self.num_switches
 
             # Parse links to understand topology structure
-            lines = content.split('\n')
+            server_bandwidths = []
             for line in lines:
-                if re.match(r'^\d+\s+\d+\s+\d+', line):
-                    parts = line.split()
-                    if len(parts) >= 3:
-                        src, dst, bw = int(parts[0]), int(parts[1]), int(parts[2])
-                        self.links[(src, dst)] = {'bandwidth': bw}
+                parts = line.split()
+                if len(parts) < 5 or not parts[0].isdigit() or not parts[1].isdigit():
+                    continue
+                src, dst = int(parts[0]), int(parts[1])
+                bw = self.parse_bandwidth_gbps(parts[2])
+                self.links[(src, dst)] = {'bandwidth': bw}
+                if hasattr(self, 'num_servers') and (
+                    (src < self.num_servers) != (dst < self.num_servers)
+                ):
+                    server_bandwidths.append(bw)
+
+            if server_bandwidths:
+                self.server_link_bw = min(server_bandwidths)
 
             # Determine topology type and structure
             self.analyze_topology_structure()
@@ -57,6 +72,23 @@ class NetworkTopology:
             print(f"Warning: Could not find topology file: {self.topo_file}")
             # Use default values for known topologies
             self.set_default_topology_params()
+
+    @staticmethod
+    def parse_bandwidth_gbps(value: str) -> float:
+        """Parse an ns-3 link rate and return Gbps."""
+        match = re.fullmatch(r'([0-9]+(?:\.[0-9]+)?)([KMGT]?bps)?', value, re.IGNORECASE)
+        if not match:
+            raise ValueError(f"Unsupported link bandwidth: {value}")
+        amount = float(match.group(1))
+        unit = (match.group(2) or "Gbps").lower()
+        factors = {
+            "bps": 1e-9,
+            "kbps": 1e-6,
+            "mbps": 1e-3,
+            "gbps": 1.0,
+            "tbps": 1e3,
+        }
+        return amount * factors[unit]
 
     def analyze_topology_structure(self):
         """Analyze topology structure to identify fat-tree or leaf-spine"""
@@ -182,6 +214,27 @@ class TreeAllReduceAnalyzer:
         tree['levels'] = nodes_at_level
 
         return tree
+
+    def calculate_ring_allreduce_jct(self, message_size: int, group_size: int) -> Dict:
+        """Calculate ideal ring reduce-scatter plus all-gather completion time."""
+        if group_size < 2:
+            raise ValueError("RingAllreduce requires at least two ranks")
+        server_bw = self.topology.get_bottleneck_bandwidth()
+        transmission_time_sec = message_size * 8 / (server_bw * 1e9)
+        total_steps = 2 * (group_size - 1)
+        total_time_sec = total_steps * transmission_time_sec
+        return {
+            "algorithm": "ring_allreduce",
+            "group_size": group_size,
+            "message_size": message_size,
+            "server_bandwidth_gbps": server_bw,
+            "total_steps": total_steps,
+            "transmission_time_sec": transmission_time_sec,
+            "ideal_jct_sec": total_time_sec,
+            "ideal_jct_ms": total_time_sec * 1000,
+            "optimal_jct_sec": total_time_sec,
+            "optimal_jct_ms": total_time_sec * 1000,
+        }
 
     def calculate_tree_allreduce_jct(self, message_size: int, group_size: int) -> Dict:
         """Calculate optimal JCT for Tree AllReduce"""

@@ -74,25 +74,42 @@ Run from `simulation/`:
 ```bash
 ./artifact/run_artifact.sh --section all --stage all --dry-run
 ./artifact/run_artifact.sh --section lossless --stage all --run-id trial1
+./artifact/run_artifact.sh --section lossless --workload datacenter-workloads --stage parse --run-id trial1
+./artifact/run_artifact.sh --section lossless --stage status --run-id trial1
 ./artifact/run_artifact.sh --section lossy --stage parse --run-id trial1
 ./artifact/run_artifact.sh --section asymmetric --stage plot --run-id trial1
 ```
 
-Supported sections are `lossless`, `lossy`, `asymmetric`, and `all`. Supported stages are `run`, `parse`, `plot`, and `all`.
+Supported sections are `lossless`, `lossy`, `asymmetric`, and `all`. Use
+`--workload datacenter-workloads|collective-communication-workloads|all` to
+select one workload family. Supported stages are `run`, `parse`, `plot`,
+`status`, and `all`.
+Within each selected section, datacenter and collective-communication workload
+families run sequentially. A failed family does not skip the remaining family;
+the command returns nonzero after all selected families have been attempted.
+
 
 Managed outputs are stored under:
 
 ```text
 artifact/results/<section>/<workload-family>/runs/<run-id>/
+  status
+  status.json
+  logs/
   history/all.history
-  history/<semantic-output>.history
   manifest.csv
   json/<semantic-output>/
   figures/
   tables/
 ```
 
-Generated outputs are ignored by Git. The artifact scripts keep raw simulator outputs in `mix/output/` and copy only the selected run history into the managed artifact result directory.
+Generated outputs are ignored by Git. Lossless managed runs append each history row to both the compatibility log `mix/.history` and the selected `run-id` as soon as the simulation is configured. At the same time, `manifest.csv` receives the `config_id` and its `paper_outputs` marker. `status.json` tracks pending, running, completed, and failed tasks. Different run IDs can run concurrently; reusing the same run ID is rejected. Raw simulator output remains in `mix/output/<config-id>/`.
+
+Run the simulation stage inside Docker. The parse stage reads existing raw
+outputs and the plot stage uses the sibling Bazel workspace, so both can run on
+the host. Figure-specific selected histories, legacy parser workspaces, and
+plot intermediates use temporary directories and are removed automatically;
+managed `json/` directories are not used as plotting workspaces.
 
 See `artifact/README.md` for the paper figure/table map and `../plot/README.md` for Bazel plotting setup.
 

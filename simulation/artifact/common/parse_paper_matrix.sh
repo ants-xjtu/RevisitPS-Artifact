@@ -7,6 +7,8 @@ NS3_ROOT="$(cd "${ARTIFACT_DIR}/.." && pwd)"
 PARSER_DIR="${NS3_ROOT}/parser"
 RESULTS="${ARTIFACT_DIR}/results/extended"
 FIGURES=()
+REFERENCE_MANIFEST=""
+REFERENCE_HISTORY=""
 
 usage() {
     cat <<'EOF'
@@ -14,6 +16,8 @@ Usage: parse_paper_matrix.sh [options]
 
 Options:
   --results-dir PATH  Read manifests and write parsed data below PATH
+  --reference-manifest PATH  Manifest for cross-workload reference panels
+  --reference-history PATH   History for cross-workload reference panels
   --figure NAME       Process one paper output; repeat for multiple outputs
   -h, --help          Show this help
 
@@ -33,6 +37,16 @@ while (($#)); do
         --figure)
             (($# >= 2)) || die "--figure requires a value"
             FIGURES+=("$2")
+            shift 2
+            ;;
+        --reference-manifest)
+            (($# >= 2)) || die "--reference-manifest requires a value"
+            REFERENCE_MANIFEST="$2"
+            shift 2
+            ;;
+        --reference-history)
+            (($# >= 2)) || die "--reference-history requires a value"
+            REFERENCE_HISTORY="$2"
             shift 2
             ;;
         -h|--help)
@@ -71,6 +85,12 @@ select_history() {
     python3 "${COMMON_DIR}/select_history.py" "$MANIFEST" "$HISTORY" "$output" "$@"
 }
 
+select_history_from() {
+    local manifest="$1" history="$2" output="$3"
+    shift 3
+    python3 "${COMMON_DIR}/select_history.py" "$manifest" "$history" "$output" "$@"
+}
+
 # Mirror an unchanged parser so its hard-coded output paths stay artifact-local.
 stage_parser() {
     local name="$1"
@@ -82,7 +102,9 @@ stage_parser() {
     ln -sfn "${NS3_ROOT}/mix" "${root}/mix"
     ln -sfn "${NS3_ROOT}/config" "${root}/config"
     ln -sfn "${NS3_ROOT}/analysis" "${root}/analysis"
-    python3 "${root}/parser/${parser_name}" "$@"
+    ln -sfn "${NS3_ROOT}/run.py" "${root}/run.py"
+    PYTHONPATH="${root}:${NS3_ROOT}${PYTHONPATH:+:${PYTHONPATH}}" \
+        python3 "${root}/parser/${parser_name}" "$@"
 }
 
 if want figure7; then
@@ -90,28 +112,39 @@ if want figure7; then
     stage_parser figure7 parse_jct_with_ideal.py "${SELECTED}/figure7.history" --mode vs_groupsize --merge-timeout --merge-cc --group_size 8 --topology leaf_spine_L8_S16_400G_OS1 --bandwidth 400
 fi
 
-# Figure 8 contains both DCN references and collective workloads. Figure 9
-# reuses only its A2Av-128 input.
-if want figure8 || want figure9; then
-    pfc_items=(a2av128:AlltoallV:128)
-    pfc_paper_output=figure9
-    if want figure8; then
-        pfc_items=(
-            hadoop:FbHdp2015:1
-            rpc:Solar2022:1
-            storage:AliStorage2019:1
-            a2av8:AlltoallV:8
-            a2av32:AlltoallV:32
-            a2av128:AlltoallV:128
-        )
-        pfc_paper_output=figure8
-    fi
+# Figure 8 contains both DCN references and collective workloads.
+if want figure8; then
+    pfc_items=(
+        hadoop:FbHdp2015:1
+        rpc:Solar2022:1
+        storage:AliStorage2019:1
+        a2av8:AlltoallV:8
+        a2av32:AlltoallV:32
+        a2av128:AlltoallV:128
+    )
     for item in "${pfc_items[@]}"; do
         IFS=: read -r label workload group_size <<<"$item"
         selected="${SELECTED}/figure8_${label}.history"
-        select_history "$selected" --figure "$pfc_paper_output" --workload "$workload" --group-size "$group_size"
+        source_manifest="$MANIFEST"
+        source_history="$HISTORY"
+        if [[ "$workload" != "AlltoallV" ]]; then
+            [[ -s "$REFERENCE_MANIFEST" ]] || die "missing Figure 8 datacenter manifest: $REFERENCE_MANIFEST"
+            [[ -s "$REFERENCE_HISTORY" ]] || die "missing Figure 8 datacenter history: $REFERENCE_HISTORY"
+            source_manifest="$REFERENCE_MANIFEST"
+            source_history="$REFERENCE_HISTORY"
+        fi
+        select_history_from "$source_manifest" "$source_history" "$selected" \
+            --figure figure8 --workload "$workload" --group-size "$group_size"
         stage_parser "figure8_${label}" parse_dcn_pfc_incast.py "$selected"
     done
+fi
+
+if want figure9; then
+    selected="${SELECTED}/figure9_leafspine_storage.history"
+    select_history "$selected" \
+        --figure figure9 --topology leaf_spine_L8_S16_100G_OS1 \
+        --workload AliStorage2019 --group-size 1
+    stage_parser figure9_leafspine_storage parse_dcn_pfc_incast.py "$selected"
 fi
 
 if want figure10; then
@@ -120,7 +153,9 @@ if want figure10; then
 fi
 
 if want table5; then
-    select_history "${SELECTED}/table5.history" --figure table5 --group-size 128
+    select_history "${SELECTED}/table5.history" \
+        --figure table5 --topology leaf_spine_L8_S16_100G_OS1 \
+        --workload AliStorage2019 --group-size 1
     stage_parser table5 parse_dcn_pfc_spine_balance.py "${SELECTED}/table5.history" --servers-per-leaf 16
     python3 "${COMMON_DIR}/build_table5.py" "${STAGE}/table5/parser/json-data-pfc-spine-balance" "${RESULTS}/tables"
 fi

@@ -9,14 +9,14 @@ Runs use 100 Gbps, `--buffer 0`, PFC disabled, a 150 MiB receive target,
 `320 us`/`100 us` lossy RTOs.
 
 ```bash
-./artifact/asymmetric/collective-communication-workloads/run_experiments.sh
-./artifact/asymmetric/collective-communication-workloads/parse_results.sh
-./artifact/asymmetric/collective-communication-workloads/plot_results.sh
+./artifact/run_artifact.sh --section asymmetric --workload collective-communication-workloads --stage run --run-id trial1
+./artifact/asymmetric/collective-communication-workloads/parse_results.sh --run-id trial1
+./artifact/asymmetric/collective-communication-workloads/plot_results.sh --run-id trial1
 ```
 
 `parse_results.sh` runs `parse_jct_with_ideal.py` to produce Figure 17
 JSON. Results are written below
-`artifact/results/asymmetric/collective-communication-workloads/`.
+`artifact/results/asymmetric/collective-communication-workloads/runs/trial1/`.
 
 `MAX_JOBS` is set near the top of `run_experiments.sh`. Its explicit
 parameter lines combine the CC form from `autorun_ai.sh` with the S1--S4
