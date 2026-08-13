@@ -256,6 +256,8 @@ parse_stage() {
             ((DRY_RUN)) || require_history lossy datacenter-workloads 1
             parse_one lossy datacenter-workloads parse_fig11_lossy_dcn_p99_fct_leafspine.py
             parse_one lossy datacenter-workloads parse_fig12_lossy_dcn_p99_fct_fattree.py
+            parse_one lossy datacenter-workloads parse_tbl06_lossy_packet_drops.py
+            parse_one lossy datacenter-workloads parse_tbl07_lossy_packet_drops.py
         fi
         if want_workload collective-communication-workloads; then
             ((DRY_RUN)) || require_history lossy collective-communication-workloads 1

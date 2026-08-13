@@ -224,7 +224,9 @@ def place_legend(ax, max_rows, ncol_override=None, first_col_items=None):
 
 
 def draw_one_group(series_list, x_tick_labels, output_prefix, legend_max_rows,
-                   legend_ncol=None, legend_first_col_items=None):
+                   legend_ncol=None, legend_first_col_items=None,
+                   p99_ymin=None, p99_ymax=None, p99_yticks=None,
+                   metric="both"):
     series_list = sorted(series_list, key=_lb_sort_key)
     x_tick_positions = np.arange(len(x_tick_labels))
     visible_xticks, visible_xtick_labels = get_visible_xticks(x_tick_positions, x_tick_labels)
@@ -245,51 +247,53 @@ def draw_one_group(series_list, x_tick_labels, output_prefix, legend_max_rows,
             return f"{lb}(Trim)"
         return str(lb)
 
-    # -------- AVG --------
-    p_avg = plot.LinePointPlot()
-    p_avg.fig.set_size_inches(9.6, 6.0)
-    avg_values = []
-    for s in series_list:
-        y = s["avg_fct_slowdown"]
-        if len(y) != len(x_tick_positions):
-            print(f"⚠️ Warning: avg point count mismatch for {get_label(s)}; skipping.")
-            continue
-        avg_values.extend(y)
+    if metric in {"avg", "both"}:
+        p_avg = plot.LinePointPlot()
+        p_avg.fig.set_size_inches(9.6, 6.0)
+        avg_values = []
+        for s in series_list:
+            y = s["avg_fct_slowdown"]
+            if len(y) != len(x_tick_positions):
+                print(f"⚠️ Warning: avg point count mismatch for {get_label(s)}; skipping.")
+                continue
+            avg_values.extend(y)
 
-        p_avg.plot(
-            x_tick_positions,
-            y,
-            label=get_label(s),
-            markevery=1
+            p_avg.plot(
+                x_tick_positions,
+                y,
+                label=get_label(s),
+                markevery=1
+            )
+
+        p_avg.ax.set_xlabel("Flow Size (Bytes)", fontsize=35)
+        p_avg.ax.set_ylabel("Average FCT Slowdown", fontsize=35)
+        p_avg.ax.set_yscale(
+            "function",
+            functions=(lambda x: np.power(x, gamma),
+                       lambda y: np.power(y, 1 / gamma))
         )
+        apply_y_axis_bounds(p_avg.ax, avg_values)
+        p_avg.ax.set_xticks(visible_xticks)
+        p_avg.ax.set_xticklabels(
+            visible_xtick_labels, rotation=45, ha='center', fontsize=26,
+            fontweight='semibold', rotation_mode='anchor'
+        )
+        p_avg.ax.set_xlim(x_tick_positions[0] - 0.5, x_tick_positions[-1] + 0.5)
+        p_avg.ax.tick_params(axis='x', which='major', direction='out', length=8, pad=10, colors="black")
+        p_avg.ax.tick_params(axis='x', which='minor', direction='out', colors="black")
+        p_avg.ax.tick_params(axis='y', which='major', labelsize=30, colors="black")
+        p_avg.ax.tick_params(axis='y', which='minor', colors="black")
+        style_axes(p_avg.ax)
+        place_legend(p_avg.ax, legend_max_rows, legend_ncol, legend_first_col_items)
 
-    p_avg.ax.set_xlabel("Flow Size (Bytes)", fontsize=35)
-    p_avg.ax.set_ylabel("Average FCT Slowdown", fontsize=35)
-    p_avg.ax.set_yscale(
-        "function",
-        functions=(lambda x: np.power(x, gamma),
-                   lambda y: np.power(y, 1 / gamma))
-    )
-    apply_y_axis_bounds(p_avg.ax, avg_values)
-    p_avg.ax.set_xticks(visible_xticks)
-    p_avg.ax.set_xticklabels(
-        visible_xtick_labels, rotation=45, ha='center', fontsize=26,
-        fontweight='semibold', rotation_mode='anchor'
-    )
-    p_avg.ax.set_xlim(x_tick_positions[0] - 0.5, x_tick_positions[-1] + 0.5)
-    p_avg.ax.tick_params(axis='x', which='major', direction='out', length=8, pad=10, colors="black")
-    p_avg.ax.tick_params(axis='x', which='minor', direction='out', colors="black")
-    p_avg.ax.tick_params(axis='y', which='major', labelsize=30, colors="black")
-    p_avg.ax.tick_params(axis='y', which='minor', colors="black")
-    style_axes(p_avg.ax)
-    place_legend(p_avg.ax, legend_max_rows, legend_ncol, legend_first_col_items)
-
-    avg_path = os.path.abspath(f"{output_prefix}_avg.pdf")
-    plt.savefig(avg_path, bbox_inches="tight")
-    plt.close()
-    print(f"  Saved: {avg_path}")
+        avg_path = os.path.abspath(f"{output_prefix}_avg.pdf")
+        plt.savefig(avg_path, bbox_inches="tight")
+        plt.close()
+        print(f"  Saved: {avg_path}")
 
     # -------- P99 --------
+    if metric == "avg":
+        return
     p_p99 = plot.LinePointPlot()
     p_p99.fig.set_size_inches(9.6, 6.0)
     p99_values = []
@@ -314,10 +318,15 @@ def draw_one_group(series_list, x_tick_labels, output_prefix, legend_max_rows,
         functions=(lambda x: np.power(x, gamma),
                    lambda y: np.power(y, 1 / gamma))
     )
-    apply_y_axis_bounds(p_p99.ax, p99_values)
-    ensure_y_tick(p_p99.ax, 25)
-    ensure_y_tick(p_p99.ax, 50)
-    ensure_y_tick(p_p99.ax, 100)
+    if p99_ymin is not None or p99_ymax is not None:
+        p_p99.ax.set_ylim(bottom=p99_ymin, top=p99_ymax)
+        if p99_yticks:
+            p_p99.ax.set_yticks(p99_yticks)
+    else:
+        apply_y_axis_bounds(p_p99.ax, p99_values)
+        ensure_y_tick(p_p99.ax, 25)
+        ensure_y_tick(p_p99.ax, 50)
+        ensure_y_tick(p_p99.ax, 100)
     p_p99.ax.set_xticks(visible_xticks)
     p_p99.ax.set_xticklabels(
         visible_xtick_labels, rotation=45, ha='center', fontsize=26,
@@ -344,7 +353,8 @@ FLOWLET_LBS = {"LETFLOW", "CONGA"}
 def draw_fct_plot(json_path, output_dir, exclude_lb=None,
                   no_trimming=False, no_rto_gbn_slowstart=False,
                   no_flowlet=False, legend_max_rows=99, legend_ncol=None,
-                  legend_first_col_items=None):
+                  legend_first_col_items=None, p99_ymin=None, p99_ymax=None,
+                  p99_yticks=None, metric="both"):
     with open(json_path, 'r') as f:
         data = json.load(f)
 
@@ -401,7 +411,8 @@ def draw_fct_plot(json_path, output_dir, exclude_lb=None,
         print(f"  ▶ Plotting RTO H={rto_h} L={rto_l} ({len(series_list)} lines)")
         draw_one_group(
             series_list, x_tick_labels, prefix, legend_max_rows,
-            legend_ncol, legend_first_col_items
+            legend_ncol, legend_first_col_items,
+            p99_ymin, p99_ymax, p99_yticks, metric
         )
 
 
@@ -430,6 +441,14 @@ def main():
                         help="Force legend into this many vertical columns.")
     parser.add_argument("--legend-first-col-items", type=int, default=None,
                         help="When using multi-column legend, force this many items in the first column.")
+    parser.add_argument("--p99-ymin", type=float, default=None,
+                        help="Fixed lower bound for the P99 panel.")
+    parser.add_argument("--p99-ymax", type=float, default=None,
+                        help="Fixed upper bound for the P99 panel.")
+    parser.add_argument("--p99-yticks", type=float, nargs="*", default=None,
+                        help="Fixed major ticks for the P99 panel.")
+    parser.add_argument("--metric", choices=("avg", "p99", "both"), default="both",
+                        help="Metric panels to render (default: both).")
     args = parser.parse_args()
 
     exclude_lb = list(args.exclude_lb)
@@ -452,7 +471,11 @@ def main():
                       no_flowlet=args.no_flowlet,
                       legend_max_rows=args.legend_max_rows,
                       legend_ncol=args.legend_ncol,
-                      legend_first_col_items=args.legend_first_col_items)
+                      legend_first_col_items=args.legend_first_col_items,
+                      p99_ymin=args.p99_ymin,
+                      p99_ymax=args.p99_ymax,
+                      p99_yticks=args.p99_yticks,
+                      metric=args.metric)
     else:
         for f in glob.glob(os.path.join(path, "*.json")):
             draw_fct_plot(f, path,
@@ -462,7 +485,11 @@ def main():
                           no_flowlet=args.no_flowlet,
                           legend_max_rows=args.legend_max_rows,
                           legend_ncol=args.legend_ncol,
-                          legend_first_col_items=args.legend_first_col_items)
+                          legend_first_col_items=args.legend_first_col_items,
+                          p99_ymin=args.p99_ymin,
+                          p99_ymax=args.p99_ymax,
+                          p99_yticks=args.p99_yticks,
+                          metric=args.metric)
 
 
 if __name__ == "__main__":

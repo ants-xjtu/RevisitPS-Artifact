@@ -45,6 +45,20 @@ def load_spine_qlen_parser():
     return module
 
 
+def load_lossy_drop_table():
+    parser_dir = NS3_ROOT / "parser" / "artifact" / "lossy"
+    sys.path.insert(0, str(parser_dir))
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "lossy_drop_table", parser_dir / "lossy_drop_table.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.pop(0)
+    return module
+
+
 def load_simulator_runner():
     path = NS3_ROOT / "run.py"
     spec = importlib.util.spec_from_file_location("artifact_simulator_runner", path)
@@ -282,6 +296,34 @@ class ManifestTest(unittest.TestCase):
 
 
 class ParserPipelineTest(unittest.TestCase):
+    def test_lossy_drop_table_uses_switch_counters_and_trim_adjustment(self) -> None:
+        parser = load_lossy_drop_table()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stats = Path(temp_dir) / "flow_drop.txt"
+            stats.write_text(
+                """[ToR Switches]
+  -> Up Total        : 10
+  -> Down Total      : 20
+[Spine Switches]
+  -> Up Total        : 30
+  -> Down Total      : 40
+[Core Switches]
+  -> Total           : 50
+[Other Events]
+  Packets Trimmed    : 25
+[OOO Overall Stats]
+# total_rx_packets,ooo_packets,ooo_rate
+1000,10,0.01
+""",
+                encoding="utf-8",
+            )
+            dropped, received, trimmed = parser.parse_drop_statistics(stats)
+
+        self.assertEqual(dropped, 150)
+        self.assertEqual(received, 1000)
+        self.assertEqual(trimmed, 25)
+        self.assertAlmostEqual(dropped / (received + dropped - trimmed), 2 / 15)
+
     def test_spine_queue_parser_uses_flow_window_and_physical_ports(self) -> None:
         parser = load_spine_qlen_parser()
         with tempfile.TemporaryDirectory() as temp_dir:

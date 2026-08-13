@@ -1,17 +1,18 @@
-# Asymmetric-network experiments
+# Asymmetric Experiments
 
-This section evaluates four asymmetric topologies:
+Run commands from `simulation/`:
 
-- S1: one leaf-spine link failure.
-- S2: 10% random link failures.
-- S3: 10% of links limited to 50% capacity.
-- S4: 20% of links limited to 50% capacity.
+```bash
+./artifact/run_artifact.sh --section asymmetric --stage run --run-id trial1
+./artifact/run_artifact.sh --section asymmetric --stage status --run-id trial1
+./artifact/run_artifact.sh --section asymmetric --stage parse --run-id trial1
+./artifact/run_artifact.sh --section asymmetric --stage plot --run-id trial1
+```
 
-| Workload family | Paper outputs | Entry directory |
-|---|---|---|
-| Datacenter | Figures 14--16 | [datacenter-workloads](datacenter-workloads/README.md) |
-| Collective communication | Figure 17 | [collective-communication-workloads](collective-communication-workloads/README.md) |
+Use `--resume` with the run stage to continue an existing run. Use a unique
+run ID when starting another asymmetric run concurrently.
 
-These are lossy runs with PFC disabled. Figure 16 reuses the S3 RTO baselines
-from Figure 14 and adds the RPS/AR trimming configurations; duplicate
-simulations are removed by the shared matrix expander.
+Workload-specific commands:
+
+- [Datacenter workloads](datacenter-workloads/README.md)
+- [Collective communication workloads](collective-communication-workloads/README.md)

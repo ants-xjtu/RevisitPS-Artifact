@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Expand and optionally run the paper Figure 7--17/Table 5 recipes."""
+"""Expand and optionally run the paper Figure 7--17/Table 5--7 recipes."""
 
 from __future__ import annotations
 
@@ -268,7 +268,7 @@ def main() -> int:
     parser.add_argument("--recipe", action="append", default=[], help="select recipe")
     parser.add_argument(
         "--figure", action="append", default=[],
-        help="select figure7..figure17 or table5",
+        help="select figure7..figure17 or table5..table7",
     )
     parser.add_argument("--jobs", type=int, default=60)
     parser.add_argument("--dry-run", action="store_true")

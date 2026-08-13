@@ -1639,12 +1639,11 @@ void RdmaHw::ResetDcqcnStateOnTimeout(Ptr<RdmaQueuePair> qp) {
         }
         else if(m_timeoutSlowStartMode >= 2)
         {
-            // 1. Reset rate to /2.
             uint32_t slowStartFactor = m_timeoutSlowStartMode;
-            DataRate  oldRate = qp->m_rate;
-            DataRate  newRate = std::max(oldRate / slowStartFactor, m_minRate);
+            DataRate rateBeforeTimeout = slowStartFactor > 64 ? qp->m_max_rate : qp->m_rate;
+            DataRate newRate = std::max(rateBeforeTimeout / slowStartFactor, m_minRate);
             qp->m_rate = newRate;
-            qp->mlx.m_targetRate = std::max(oldRate / slowStartFactor, m_minRate);
+            qp->mlx.m_targetRate = newRate;
         }
         else
         {

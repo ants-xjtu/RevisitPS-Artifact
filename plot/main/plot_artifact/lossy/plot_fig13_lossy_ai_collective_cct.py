@@ -10,10 +10,10 @@ def main() -> int:
     add_common_args(parser)
     args = parser.parse_args()
     panels = [
-        ("a", "lossy-low-incast", "low_incast"),
-        ("b", "lossy-high-incast", "high_incast"),
+        ("a", "lossy-low-incast", "low_incast", "upper right"),
+        ("b", "lossy-high-incast", "high_incast", "upper right"),
     ]
-    for panel, combined_group, suffix in panels:
+    for panel, combined_group, suffix, legend_loc in panels:
         with temporary_workdir(f"fig13-{panel}", dry_run=args.dry_run) as stage_out:
             run_bazel(
                 "//main/plot_sample:plot_sim_ai_jct_avg",
@@ -25,6 +25,12 @@ def main() -> int:
                     "--combined-group",
                     combined_group,
                     "--all-combos",
+                    "--raw-ytop",
+                    "4",
+                    "--raw-ystep",
+                    "1",
+                    "--legend-loc",
+                    legend_loc,
                 ],
                 dry_run=args.dry_run,
             )

@@ -407,7 +407,8 @@ def _collect_combined_series(workload_data, combined_categories, dcqcn_only,
 
 
 def draw_combined(topo, fc, workload_data, output_dir, dcqcn_only, normalize,
-                  raw_ytop, raw_ystep, no_trimming, combined_group):
+                  raw_ytop, raw_ystep, no_trimming, combined_group,
+                  legend_loc):
     """Draw ONE bar chart per (topology, flow_control) combining AlltoAll,
     RingAllreduce, and AlltoAllV (np=8, np=16) on the x-axis."""
     combined_categories, resolved_group, combo_override = _get_combined_group_settings(combined_group)
@@ -477,7 +478,7 @@ def draw_combined(topo, fc, workload_data, output_dir, dcqcn_only, normalize,
 
     legend = ax.legend(fontsize=25,
                        prop={"family": FONT_FAMILY, "size": 25},
-                       loc="best",
+                       loc=legend_loc,
                        ncol=2,
                        frameon=True,
                        edgecolor="dimgray",
@@ -662,6 +663,9 @@ def main():
         "--raw-ystep", type=float, default=None,
         help="Y-axis tick step for raw Average CCT mode (auto if omitted).")
     parser.add_argument(
+        "--legend-loc", type=str, default="best",
+        help="Matplotlib legend location (default: best).")
+    parser.add_argument(
         "--combined", action="store_true",
         help="Combine AlltoAll, RingAllreduce, and AlltoAllV (np=8, np=16) "
              "into one figure per (topology, flow_control).")
@@ -712,7 +716,8 @@ def main():
             draw_combined(topo, fc, workload_data, output_dir,
                           args.dcqcn_only, args.normalize,
                           args.raw_ytop, args.raw_ystep,
-                          args.no_trimming, args.combined_group)
+                          args.no_trimming, args.combined_group,
+                          args.legend_loc)
     else:
         for jf in json_files:
             print(f"--- {os.path.basename(jf)} ---")

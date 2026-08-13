@@ -87,6 +87,7 @@ def select_manifest_history(
     workloads: set[str] | None = None,
     group_sizes: set[str] | None = None,
     algorithms: set[str] | None = None,
+    recipes: set[str] | None = None,
     expected: int | None = None,
     dry_run: bool = False,
 ) -> list[str]:
@@ -97,6 +98,7 @@ def select_manifest_history(
             "workloads": workloads,
             "group_sizes": group_sizes,
             "algorithms": algorithms,
+            "recipes": recipes,
         }
         rendered = " ".join(
             f"{name}={';'.join(sorted(values))}"
@@ -123,6 +125,8 @@ def select_manifest_history(
         if group_sizes and row.get("group_size") not in group_sizes:
             continue
         if algorithms and row.get("algorithm") not in algorithms:
+            continue
+        if recipes and row.get("recipe") not in recipes:
             continue
         wanted.append(row["config_id"])
 

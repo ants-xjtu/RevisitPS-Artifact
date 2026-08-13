@@ -1,22 +1,28 @@
-# Lossy collective-communication workloads
+# Lossy Collective-Communication Workloads
 
-This group reproduces Figure 13 with 47 simulations.
-
-It evaluates AllToAll and RingAllReduce with groups of 8 and AllToAllV with
-groups of 8, 16, 32, 64, and 128. The runs compare RTO, trimming, and
-rate-reduction timeout modes at 400 Gbps with PFC disabled. Leaf-spine
-AI windows are 404000 bytes, RingAllReduce uses 1024000 bytes, and RTOs are
-`320 us`/`100 us`; AllToAllV uses the `zipfian_incast` pattern.
+Run simulations inside Docker from `simulation/`:
 
 ```bash
-./artifact/run_artifact.sh --section lossy --workload collective-communication-workloads --stage run --run-id trial1
+./artifact/run_artifact.sh \
+  --section lossy \
+  --workload collective-communication-workloads \
+  --stage run \
+  --run-id trial1
+```
+
+Monitor or resume the run:
+
+```bash
+./artifact/run_artifact.sh --section lossy --workload collective-communication-workloads --stage status --run-id trial1
+./artifact/run_artifact.sh --section lossy --workload collective-communication-workloads --stage run --run-id trial1 --resume
+```
+
+Parse and plot completed results from Docker or the host:
+
+```bash
 ./artifact/lossy/collective-communication-workloads/parse_results.sh --run-id trial1
 ./artifact/lossy/collective-communication-workloads/plot_results.sh --run-id trial1
 ```
 
-`parse_results.sh` runs `parse_jct_with_ideal.py` to produce Figure 13
-JSON. Results are written below
+Results are stored under
 `artifact/results/lossy/collective-communication-workloads/runs/trial1/`.
-
-`MAX_JOBS` is set near the top of `run_experiments.sh`. The runner follows
-`autorun_ai.sh`, with every CC workload parameter group listed explicitly.

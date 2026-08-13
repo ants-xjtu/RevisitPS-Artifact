@@ -23,7 +23,7 @@ import run_paper_matrix as extended  # noqa: E402
 class ExtendedMatrixTest(unittest.TestCase):
     def test_complete_matrix_and_minimal_shared_selections(self) -> None:
         tasks = extended.load_tasks(set(), set())
-        self.assertEqual(len(tasks), 186)
+        self.assertEqual(len(tasks), 187)
         self.assertEqual(len(extended.load_tasks(set(), {"figure7"})), 47)
         self.assertEqual(len(extended.load_tasks(set(), {"figure10"})), 1)
         self.assertEqual(len(extended.load_tasks(set(), {"figure16"})), 6)
@@ -111,7 +111,7 @@ class ExtendedMatrixTest(unittest.TestCase):
             }
         self.assertEqual(
             outputs,
-            {*(f"figure{i}" for i in range(7, 18)), "table5"},
+            {*(f"figure{i}" for i in range(7, 18)), "table5", "table6", "table7"},
         )
 
 
@@ -159,7 +159,7 @@ class ExtendedDryRunTest(unittest.TestCase):
     def test_group_plot_dry_runs_use_expected_plot_targets(self) -> None:
         groups = {
             ("lossless", "collective-communication-workloads"): 4,
-            ("lossy", "datacenter-workloads"): 2,
+            ("lossy", "datacenter-workloads"): 3,
             ("lossy", "collective-communication-workloads"): 2,
             ("asymmetric", "datacenter-workloads"): 4,
             ("asymmetric", "collective-communication-workloads"): 1,
@@ -199,7 +199,7 @@ class ChapterLayoutTest(unittest.TestCase):
     GROUPS = {
         ("lossless", "datacenter-workloads"): 28,
         ("lossless", "collective-communication-workloads"): 47,
-        ("lossy", "datacenter-workloads"): 10,
+        ("lossy", "datacenter-workloads"): 11,
         ("lossy", "collective-communication-workloads"): 47,
         ("asymmetric", "datacenter-workloads"): 26,
         ("asymmetric", "collective-communication-workloads"): 48,
@@ -215,7 +215,16 @@ class ChapterLayoutTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn('figures={"figure11"}, expected=4', figure11)
-        self.assertIn('figures={"figure12"}, expected=6', figure12)
+        self.assertIn('figures={"figure12"}, expected=7', figure12)
+
+        table6 = (
+            parser_root / "parse_tbl06_lossy_packet_drops.py"
+        ).read_text(encoding="utf-8")
+        table7 = (
+            parser_root / "parse_tbl07_lossy_packet_drops.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('expected=3', table6)
+        self.assertIn('expected=5', table7)
 
     def test_lossy_figure13_wrapper_generates_both_paper_panels(self) -> None:
         wrapper = (
@@ -228,6 +237,20 @@ class ChapterLayoutTest(unittest.TestCase):
         self.assertIn(
             "fig13{panel}_lossy_ai_collective_cct_{suffix}.pdf", wrapper
         )
+        self.assertIn('"--raw-ytop"', wrapper)
+        self.assertIn('"--raw-ystep"', wrapper)
+        self.assertIn('"--legend-loc"', wrapper)
+
+    def test_lossy_figure12_wrapper_generates_two_p99_panels(self) -> None:
+        wrapper = (
+            REPO_ROOT / "plot" / "main" / "plot_artifact" / "lossy"
+            / "plot_fig12_lossy_dcn_p99_fct_fattree.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('[staged, "--metric", "p99", *filters]', wrapper)
+        self.assertIn("fig12{panel}_lossy_dcn_p99_fct_fattree_{suffix}.pdf", wrapper)
+        self.assertIn('"--p99-ymin", "30", "--p99-ymax", "1450"', wrapper)
+        self.assertIn('"--p99-ymin", "20", "--p99-ymax", "1450"', wrapper)
 
     def test_every_group_has_readme_run_and_plot_entry_points(self) -> None:
         for section, workload in self.GROUPS:

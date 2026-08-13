@@ -1,23 +1,28 @@
-# Lossy datacenter workloads
+# Lossy Datacenter Workloads
 
-This group reproduces Figures 11--12 with 10 simulations.
-
-- Figure 11: 1:1 leaf-spine, AliStorage2019 at 80% load.
-- Figure 12: fat-tree k=8, AliStorage2019 at 80% load.
-
-The runs use 100 Gbps, PFC disabled, DCQCN, `320 us` large-message RTO, and
-`100 us` small-message RTO. The compared recovery configurations are the
-paper's ECMP/ConWeave baselines and AR RTO/trimming variants.
+Run simulations inside Docker from `simulation/`:
 
 ```bash
-./artifact/run_artifact.sh --section lossy --workload datacenter-workloads --stage run --run-id trial1
+./artifact/run_artifact.sh \
+  --section lossy \
+  --workload datacenter-workloads \
+  --stage run \
+  --run-id trial1
+```
+
+Monitor or resume the run:
+
+```bash
+./artifact/run_artifact.sh --section lossy --workload datacenter-workloads --stage status --run-id trial1
+./artifact/run_artifact.sh --section lossy --workload datacenter-workloads --stage run --run-id trial1 --resume
+```
+
+Parse and plot completed results from Docker or the host:
+
+```bash
 ./artifact/lossy/datacenter-workloads/parse_results.sh --run-id trial1
 ./artifact/lossy/datacenter-workloads/plot_results.sh --run-id trial1
 ```
 
-`parse_results.sh` runs `parse_dcn_fct_rto.py` and produces the Figure 11
-and Figure 12 JSON before plotting. Results are written below
+Results are stored under
 `artifact/results/lossy/datacenter-workloads/runs/trial1/`.
-
-`MAX_JOBS` is set near the top of `run_experiments.sh`. All Figure 11--12
-parameter groups are listed directly in that script in `autorun_new.sh` form.
