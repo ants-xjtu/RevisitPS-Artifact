@@ -15,9 +15,11 @@ except ImportError:
     pass
 
 
-TRIM_RECOVERIES = {"IdealTrimming", "IdealTrimming+slowstart"}
+TRIM_RECOVERIES = {
+    "IdealTrimming", "IdealTrimming+slowstart", "IdealTrimming+1/2",
+}
 RTO_RECOVERIES = {"RTO+GBN", "RTO+GBN+slowstart", "RTO+GBN+Now"}
-COMBINED_LBS = ["RPS", "AR", "DRILLGroup", "SGLB"]
+COMBINED_LBS = ["RPS", "AR", "DRILL", "SGLB"]
 
 
 def format_bytes(num):
@@ -129,17 +131,21 @@ def style_axes(ax):
         spine.set_color("black")
 
 
-def place_legend(ax, max_rows):
+def place_legend(ax, max_rows, ncol_override=None, loc="best"):
     handles, labels = ax.get_legend_handles_labels()
     n_items = len(labels)
-    ncol = max(1, int(np.ceil(n_items / max_rows))) if max_rows > 0 else 1
-    ax.legend(
+    ncol = (
+        ncol_override
+        if ncol_override is not None
+        else max(1, int(np.ceil(n_items / max_rows))) if max_rows > 0 else 1
+    )
+    legend = ax.legend(
         handles,
         labels,
         fontsize=25,
         prop={"family": FONT_FAMILY, "size": 25},
-        loc="best",
-        ncol=1,
+        loc=loc,
+        ncol=ncol,
         frameon=True,
         edgecolor="dimgray",
         facecolor="white",
@@ -150,13 +156,12 @@ def place_legend(ax, max_rows):
         handlelength=1.4,
         handletextpad=0.2,
     )
+    legend.set_zorder(1000)
 
 
 def get_label(s, include_lb=False):
     rec = s.get("recovery_mechanism", "N/A")
     lb = s.get("load_balancing_mode", "N/A")
-    if str(lb).lower() == "drillgroup":
-        lb = "DRILL"
     rec_lower = str(rec).lower()
     if "idealtrimming" in rec_lower:
         label = "Trim"
@@ -169,7 +174,8 @@ def get_label(s, include_lb=False):
     return label or str(lb)
 
 
-def draw_compare(series_list, x_tick_labels, output_prefix, include_lb=False, legend_max_rows=99):
+def draw_compare(series_list, x_tick_labels, output_prefix, include_lb=False,
+                 legend_max_rows=99, legend_ncol=None, legend_loc="best"):
     if not series_list:
         return
     x_tick_positions = np.arange(len(x_tick_labels))
@@ -212,7 +218,12 @@ def draw_compare(series_list, x_tick_labels, output_prefix, include_lb=False, le
         p.ax.tick_params(axis="y", which="major", labelsize=30, colors="black")
         p.ax.tick_params(axis="y", which="minor", colors="black")
         style_axes(p.ax)
-        place_legend(p.ax, legend_max_rows)
+        place_legend(
+            p.ax,
+            legend_max_rows,
+            ncol_override=legend_ncol,
+            loc=legend_loc,
+        )
         out_path = f"{output_prefix}_{suffix}.pdf"
         plt.savefig(out_path, bbox_inches="tight")
         plt.close()
@@ -220,7 +231,7 @@ def draw_compare(series_list, x_tick_labels, output_prefix, include_lb=False, le
 
 
 def draw_trim_vs_rto(json_path, output_dir, no_drill_trim=False, no_sglb_trim=False,
-                     legend_max_rows=99):
+                     legend_max_rows=99, legend_ncol=None, legend_loc="best"):
     meta = os.path.basename(json_path)
     if "FC_Lossy" not in meta:
         print(f"skip (not Lossy): {meta}")
@@ -260,6 +271,9 @@ def draw_trim_vs_rto(json_path, output_dir, no_drill_trim=False, no_sglb_trim=Fa
 
     per_lb = defaultdict(list)
     for s in keep:
+        if str(s.get("load_balancing_mode", "")).lower() == "drillgroup":
+            s = dict(s)
+            s["load_balancing_mode"] = "DRILL"
         per_lb[s.get("load_balancing_mode", "N/A")].append(s)
 
     combined = []
@@ -274,6 +288,8 @@ def draw_trim_vs_rto(json_path, output_dir, no_drill_trim=False, no_sglb_trim=Fa
             prefix,
             include_lb=True,
             legend_max_rows=legend_max_rows,
+            legend_ncol=legend_ncol,
+            legend_loc=legend_loc,
         )
 
 
@@ -288,6 +304,10 @@ def main():
                     help="Exclude SGLB(Trim) series.")
     ap.add_argument("--legend-max-rows", type=int, default=99,
                     help="Maximum legend entries per column before adding another column.")
+    ap.add_argument("--legend-ncol", type=int, default=None,
+                    help="Force the legend to use this many columns.")
+    ap.add_argument("--legend-loc", default="best",
+                    help="Matplotlib legend location (default: best).")
     args = ap.parse_args()
 
     path = os.path.abspath(os.path.expanduser(args.input_path))
@@ -300,6 +320,8 @@ def main():
             no_drill_trim=args.no_drill_trim,
             no_sglb_trim=args.no_sglb_trim,
             legend_max_rows=args.legend_max_rows,
+            legend_ncol=args.legend_ncol,
+            legend_loc=args.legend_loc,
         )
     else:
         out_dir = args.output_dir or path
@@ -311,6 +333,8 @@ def main():
                 no_drill_trim=args.no_drill_trim,
                 no_sglb_trim=args.no_sglb_trim,
                 legend_max_rows=args.legend_max_rows,
+                legend_ncol=args.legend_ncol,
+                legend_loc=args.legend_loc,
             )
 
 

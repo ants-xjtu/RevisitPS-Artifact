@@ -22,6 +22,7 @@ class PlotDcnOooTest(unittest.TestCase):
     def test_packet_spraying_series_follow_paper_line_order(self):
         module = load_module()
         series = [
+            {"load_balancing_mode": "SGLB"},
             {"load_balancing_mode": "AR"},
             {"load_balancing_mode": "RPS"},
             {"load_balancing_mode": "DRILL"},
@@ -31,8 +32,33 @@ class PlotDcnOooTest(unittest.TestCase):
 
         self.assertEqual(
             [item["load_balancing_mode"] for item in ordered],
-            ["RPS", "DRILL", "AR"],
+            ["RPS", "AR", "SGLB", "DRILL"],
         )
+
+    def test_paper_series_keeps_sglb_and_displays_drillgroup_as_drill(self):
+        module = load_module()
+        series = [
+            {"load_balancing_mode": "ECMP", "recovery_mechanism": "RTO+GBN"},
+            {"load_balancing_mode": "RPS", "recovery_mechanism": "RTO+GBN"},
+            {"load_balancing_mode": "AR", "recovery_mechanism": "RTO+GBN"},
+            {"load_balancing_mode": "SGLB", "recovery_mechanism": "RTO+GBN"},
+            {"load_balancing_mode": "DRILLGroup", "recovery_mechanism": "RTO+GBN"},
+        ]
+
+        prepared = module.prepare_paper_data_series(series)
+
+        self.assertEqual(
+            [item["load_balancing_mode"] for item in prepared],
+            ["RPS", "AR", "SGLB", "DRILL"],
+        )
+
+    def test_reordering_cdf_uses_paper_axis_ranges(self):
+        module = load_module()
+
+        self.assertEqual(module.CDF_X_MAX, 1000)
+        self.assertEqual(module.CDF_Y_LIMITS, (0.3, 1.02))
+        self.assertAlmostEqual(module.CDF_Y_TICKS[0], 0.3)
+        self.assertAlmostEqual(module.CDF_Y_TICKS[-1], 1.0)
 
 
 if __name__ == "__main__":

@@ -59,6 +59,21 @@ def load_lossy_drop_table():
     return module
 
 
+def load_asymmetric_table8():
+    parser_dir = NS3_ROOT / "parser" / "artifact" / "asymmetric"
+    sys.path.insert(0, str(parser_dir))
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "asymmetric_table8",
+            parser_dir / "parse_tbl08_asym_spine_link_utilization.py",
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.pop(0)
+    return module
+
+
 def load_simulator_runner():
     path = NS3_ROOT / "run.py"
     spec = importlib.util.spec_from_file_location("artifact_simulator_runner", path)
@@ -296,6 +311,95 @@ class ManifestTest(unittest.TestCase):
 
 
 class ParserPipelineTest(unittest.TestCase):
+    def test_asymmetric_history_selects_one_drill_variant_per_scenario(self) -> None:
+        artifact_common = load_lossless_artifact_common()
+        fields = [
+            "task_id", "recipe", "paper_outputs", "config_id", "topology",
+            "workload", "group_size", "algorithm", "timeout_mode", "command",
+        ]
+        rows = [
+            ("1", "leafspine_AsymFail1pct", "DRILL", "2"),
+            ("2", "leafspine_AsymFail1pct", "DRILLGroup", "7"),
+            ("3", "leafspine_AsymBw10pct_R0.5", "DRILL", "2"),
+            ("4", "leafspine_AsymBw10pct_R0.5", "DRILLGroup", "7"),
+        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            manifest = root / "manifest.csv"
+            history = root / "all.history"
+            selected = root / "selected.history"
+            with manifest.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=fields)
+                writer.writeheader()
+                for config_id, topology, algorithm, _lb_mode in rows:
+                    writer.writerow({
+                        "task_id": config_id,
+                        "recipe": "asym",
+                        "paper_outputs": "figure14",
+                        "config_id": config_id,
+                        "topology": topology,
+                        "workload": "FbHdp2015",
+                        "group_size": "1",
+                        "algorithm": algorithm,
+                        "timeout_mode": "2",
+                        "command": "python3 run.py",
+                    })
+            history.write_text(
+                "".join(
+                    f"date,{config_id},1,{lb_mode},1,rest\n"
+                    for config_id, _topology, _algorithm, lb_mode in rows
+                ),
+                encoding="utf-8",
+            )
+
+            selected_rows = artifact_common.select_asymmetric_manifest_history(
+                manifest,
+                history,
+                selected,
+                figures={"figure14"},
+                expected=2,
+            )
+
+        self.assertEqual(
+            [row.split(",")[1] for row in selected_rows], ["1", "4"]
+        )
+        self.assertEqual(
+            [row.split(",")[3] for row in selected_rows], ["2", "7"]
+        )
+
+    def test_table8_builder_writes_utilization_and_cov_range(self) -> None:
+        table8 = load_asymmetric_table8()
+        payload = {"data_series": []}
+        for index, scheme in enumerate(table8.SCHEMES, start=1):
+            source_scheme = "DRILLGroup" if scheme == "DRILL" else scheme
+            payload["data_series"].append({
+                "config_id": str(index),
+                "load_balancing_mode": source_scheme,
+                "spine_downlink_utilization": {
+                    "summary": {"avg_util_percent": 60 + index},
+                    "leaf_balance_uniformity": [
+                        {"cv": 0.01 * index},
+                        {"cv": 0.03 * index},
+                    ],
+                },
+            })
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source = root / "input.json"
+            source.write_text(json.dumps(payload), encoding="utf-8")
+            table8.build_table(source, root)
+            with (root / f"{table8.OUTPUT}.csv").open(
+                newline="", encoding="utf-8"
+            ) as handle:
+                rows = list(csv.DictReader(handle))
+
+        self.assertEqual([row["scheme"] for row in rows], table8.SCHEMES)
+        self.assertEqual(rows[0]["avg_utilization_percent"], "61.000000")
+        self.assertEqual(rows[0]["avg_cov"], "0.020000")
+        self.assertEqual(rows[0]["min_cov"], "0.010000")
+        self.assertEqual(rows[0]["max_cov"], "0.030000")
+
     def test_lossy_drop_table_uses_switch_counters_and_trim_adjustment(self) -> None:
         parser = load_lossy_drop_table()
         with tempfile.TemporaryDirectory() as temp_dir:

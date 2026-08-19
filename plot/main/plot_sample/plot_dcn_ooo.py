@@ -9,7 +9,10 @@ import glob
 import csv # 导入CSV模块
 
 FONT_FAMILY = "DejaVu Sans"
-PAPER_SERIES_ORDER = ["RPS", "DRILL", "AR"]
+PAPER_SERIES_ORDER = ["RPS", "AR", "SGLB", "DRILL"]
+CDF_X_MAX = 1000
+CDF_Y_LIMITS = (0.3, 1.02)
+CDF_Y_TICKS = tuple(np.arange(0.3, 1.01, 0.1))
 
 # 确保可以导入项目提供的绘图函式库
 try:
@@ -28,6 +31,24 @@ def order_data_series(data_series_list):
             series.get("load_balancing_mode"), len(PAPER_SERIES_ORDER)
         ),
     )
+
+
+def prepare_paper_data_series(data_series_list):
+    filtered = []
+    for original in data_series_list:
+        series = dict(original)
+        lb = str(series.get("load_balancing_mode", ""))
+        rec = str(series.get("recovery_mechanism", ""))
+        if lb in ("ECMP", "ConWeave"):
+            continue
+        if rec.replace("_", "").lower() == "idealtrimming":
+            continue
+        if lb == "WAdapt":
+            series["load_balancing_mode"] = "SGLB"
+        elif lb.lower() == "drillgroup":
+            series["load_balancing_mode"] = "DRILL"
+        filtered.append(series)
+    return order_data_series(filtered)
 
 def get_percentile_from_aggregated(aggregated_data, percentile):
     """
@@ -187,8 +208,8 @@ def draw_reorder_distance_cdf_plot(json_data, output_path):
         x_dist, y_cdf = calculate_cdf_from_aggregated(dist_data)
 
         if x_dist:
-            if x_dist[-1] < 130:
-                x_dist = list(x_dist) + [130]
+            if x_dist[-1] < CDF_X_MAX:
+                x_dist = list(x_dist) + [CDF_X_MAX]
                 y_cdf = list(y_cdf) + [y_cdf[-1]]
             mode = series.get('load_balancing_mode', 'N/A')
 
@@ -205,11 +226,11 @@ def draw_reorder_distance_cdf_plot(json_data, output_path):
     p.ax.set_xlabel("Reorder Distance (Packets)", fontsize=35, fontfamily=FONT_FAMILY, color="black")
     p.ax.set_ylabel("CDF", fontsize=35, fontfamily=FONT_FAMILY, color="black")
     p.ax.set_xscale("log")
-    p.ax.set_xlim(0.9, 130)
-    p.ax.set_xticks([1, 10, 100])
-    p.ax.set_xticklabels(["1", "10", "100"])
-    p.ax.set_ylim(0.45, 1.05)
-    p.ax.set_yticks(np.arange(0.5, 1.01, 0.1))
+    p.ax.set_xlim(0.9, CDF_X_MAX)
+    p.ax.set_xticks([1, 10, 100, CDF_X_MAX])
+    p.ax.set_xticklabels(["1", "10", "100", "1000"])
+    p.ax.set_ylim(*CDF_Y_LIMITS)
+    p.ax.set_yticks(CDF_Y_TICKS)
 
     p.ax.tick_params(axis='both', which='major', labelsize=30)
 
@@ -263,23 +284,9 @@ def main():
             print(f"错误: 无法读取或解析JSON文件 {json_file}。错误: {e}")
             continue
 
-        series_all = json_data.get("data_series", [])
-        filtered = []
-        for s in series_all:
-            lb = str(s.get("load_balancing_mode", ""))
-            rec = str(s.get("recovery_mechanism", ""))
-            if lb in ("SGLB", "ECMP", "ConWeave"):
-                continue
-            if rec.replace("_", "").lower() == "idealtrimming":
-                continue
-            if lb == "WAdapt":
-                s = dict(s)
-                s["load_balancing_mode"] = "SGLB"
-            elif lb.lower() in ("drillgroup",):
-                s = dict(s)
-                s["load_balancing_mode"] = "DRILL"
-            filtered.append(s)
-        json_data["data_series"] = filtered
+        json_data["data_series"] = prepare_paper_data_series(
+            json_data.get("data_series", [])
+        )
 
         base_name = os.path.splitext(os.path.basename(json_file))[0]
         output_dir = os.path.dirname(json_file)

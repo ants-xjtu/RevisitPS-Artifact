@@ -23,7 +23,7 @@ import run_paper_matrix as extended  # noqa: E402
 class ExtendedMatrixTest(unittest.TestCase):
     def test_complete_matrix_and_minimal_shared_selections(self) -> None:
         tasks = extended.load_tasks(set(), set())
-        self.assertEqual(len(tasks), 187)
+        self.assertEqual(len(tasks), 188)
         self.assertEqual(len(extended.load_tasks(set(), {"figure7"})), 47)
         self.assertEqual(len(extended.load_tasks(set(), {"figure10"})), 1)
         self.assertEqual(len(extended.load_tasks(set(), {"figure16"})), 6)
@@ -111,7 +111,10 @@ class ExtendedMatrixTest(unittest.TestCase):
             }
         self.assertEqual(
             outputs,
-            {*(f"figure{i}" for i in range(7, 18)), "table5", "table6", "table7"},
+            {
+                *(f"figure{i}" for i in range(7, 18)),
+                "table5", "table6", "table7", "table8",
+            },
         )
 
 
@@ -199,7 +202,7 @@ class ChapterLayoutTest(unittest.TestCase):
     GROUPS = {
         ("lossless", "datacenter-workloads"): 28,
         ("lossless", "collective-communication-workloads"): 47,
-        ("lossy", "datacenter-workloads"): 11,
+        ("lossy", "datacenter-workloads"): 12,
         ("lossy", "collective-communication-workloads"): 47,
         ("asymmetric", "datacenter-workloads"): 26,
         ("asymmetric", "collective-communication-workloads"): 48,
@@ -214,7 +217,7 @@ class ChapterLayoutTest(unittest.TestCase):
             parser_root / "parse_fig12_lossy_dcn_p99_fct_fattree.py"
         ).read_text(encoding="utf-8")
 
-        self.assertIn('figures={"figure11"}, expected=4', figure11)
+        self.assertIn('figures={"figure11"}, expected=5', figure11)
         self.assertIn('figures={"figure12"}, expected=7', figure12)
 
         table6 = (
@@ -225,6 +228,50 @@ class ChapterLayoutTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn('expected=3', table6)
         self.assertIn('expected=5', table7)
+
+        table8 = (
+            NS3_ROOT / "parser" / "artifact" / "asymmetric"
+            / "parse_tbl08_asym_spine_link_utilization.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('expected=4', table8)
+        self.assertIn('recipes={"f14_packet_s3"}', table8)
+        self.assertIn('FLOWGEN_START_MS = 2000.01', table8)
+        self.assertIn('FLOWGEN_END_MS = 2050', table8)
+
+    def test_trim_and_asymmetric_drill_variants_are_explicit(self) -> None:
+        lossy = (
+            ARTIFACT_DIR / "lossy" / "datacenter-workloads"
+            / "run_experiments.sh"
+        ).read_text(encoding="utf-8")
+        trim_lines = [
+            shlex.split(line)
+            for line in lossy.splitlines()
+            if line.startswith('run_experiment_group "f11_ar_trim"')
+        ]
+        self.assertEqual({line[11] for line in trim_lines}, {"0", "2"})
+
+        for workload in (
+            "datacenter-workloads", "collective-communication-workloads"
+        ):
+            runner = (
+                ARTIFACT_DIR / "asymmetric" / workload / "run_experiments.sh"
+            ).read_text(encoding="utf-8")
+            packet_lines = [
+                shlex.split(line)
+                for line in runner.splitlines()
+                if line.startswith("run_experiment_group ")
+                and "_packet" in line
+            ]
+            self.assertTrue(packet_lines)
+            for line in packet_lines:
+                topology = line[3]
+                if "AsymFail" in topology:
+                    self.assertIn("drill", line)
+                    self.assertNotIn("drillgroup", line)
+                else:
+                    self.assertIn("AsymBw", topology)
+                    self.assertIn("drillgroup", line)
+                    self.assertNotIn("drill", line)
 
     def test_lossy_figure13_wrapper_generates_both_paper_panels(self) -> None:
         wrapper = (
@@ -251,6 +298,48 @@ class ChapterLayoutTest(unittest.TestCase):
         self.assertIn("fig12{panel}_lossy_dcn_p99_fct_fattree_{suffix}.pdf", wrapper)
         self.assertIn('"--p99-ymin", "30", "--p99-ymax", "1450"', wrapper)
         self.assertIn('"--p99-ymin", "20", "--p99-ymax", "1450"', wrapper)
+
+    def test_asymmetric_wrappers_name_all_paper_panels(self) -> None:
+        wrapper_root = (
+            REPO_ROOT / "plot" / "main" / "plot_artifact" / "asymmetric"
+        )
+        figure14 = (wrapper_root / "plot_fig14_asym_dcn_fct.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            '[staged, "--metric", "p99", "--asymmetric-paper-p99-axes"]',
+            figure14,
+        )
+        self.assertIn('("a", "s1", "AsymFail1pct")', figure14)
+        self.assertIn('("b", "s2", "AsymFail10pct")', figure14)
+        self.assertIn('("c", "s3", "AsymBw10pct_R0.5")', figure14)
+        self.assertIn('("d", "s4", "AsymBw20pct_R0.5")', figure14)
+        self.assertIn("fig14{panel}_asym_dcn_p99_fct_{scenario}.pdf", figure14)
+        self.assertNotIn("copy_matching", figure14)
+
+        figure15 = (wrapper_root / "plot_fig15_asym_ooo_retransmission.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("fig15a_asym_reordering_distance_s3.pdf", figure15)
+        self.assertIn("fig15b_asym_retransmission_breakdown.pdf", figure15)
+
+        figure16 = (wrapper_root / "plot_fig16_asym_packet_trim_rto.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("fig16{panel}_asym_packet_trim_rto_{metric}.pdf", figure16)
+        self.assertIn(
+            '[staged, "--legend-ncol", 2, "--legend-loc", "upper left"]',
+            figure16,
+        )
+
+        figure17 = (wrapper_root / "plot_fig17_asym_ai_collective_cct.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("fig17{panel}_asym_ai_collective_cct_{suffix}.pdf", figure17)
+        self.assertIn("loc=_scenario_legend_location(load_type)", (
+            REPO_ROOT / "plot" / "main" / "plot_sample"
+            / "plot_sim_ai_jct_avg_asy.py"
+        ).read_text(encoding="utf-8"))
 
     def test_every_group_has_readme_run_and_plot_entry_points(self) -> None:
         for section, workload in self.GROUPS:

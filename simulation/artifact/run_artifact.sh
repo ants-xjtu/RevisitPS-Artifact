@@ -270,6 +270,7 @@ parse_stage() {
             parse_one asymmetric datacenter-workloads parse_fig14_asym_dcn_fct.py
             parse_one asymmetric datacenter-workloads parse_fig15_asym_ooo_retransmission.py
             parse_one asymmetric datacenter-workloads parse_fig16_asym_packet_trim_rto.py
+            parse_one asymmetric datacenter-workloads parse_tbl08_asym_spine_link_utilization.py
         fi
         if want_workload collective-communication-workloads; then
             ((DRY_RUN)) || require_history asymmetric collective-communication-workloads 1

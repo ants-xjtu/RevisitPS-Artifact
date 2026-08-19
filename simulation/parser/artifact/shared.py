@@ -155,6 +155,67 @@ def select_manifest_history(
     return rows
 
 
+def select_asymmetric_manifest_history(
+    manifest: Path,
+    history: Path,
+    selected_history: Path,
+    *,
+    figures: set[str] | None = None,
+    topologies: set[str] | None = None,
+    workloads: set[str] | None = None,
+    group_sizes: set[str] | None = None,
+    algorithms: set[str] | None = None,
+    recipes: set[str] | None = None,
+    expected: int | None = None,
+    dry_run: bool = False,
+) -> list[str]:
+    rows = select_manifest_history(
+        manifest,
+        history,
+        selected_history,
+        figures=figures,
+        topologies=topologies,
+        workloads=workloads,
+        group_sizes=group_sizes,
+        algorithms=algorithms,
+        recipes=recipes,
+        dry_run=dry_run,
+    )
+    if dry_run:
+        print(
+            "SELECT_ASYMMETRIC_DRILL",
+            "S1/S2=DRILL",
+            "S3/S4=DRILLGroup",
+            "display=DRILL",
+        )
+        return []
+
+    with manifest.open(newline="", encoding="utf-8") as handle:
+        by_config = {row["config_id"]: row for row in csv.DictReader(handle)}
+
+    selected_rows = []
+    for line in rows:
+        fields = history_fields(line)
+        row = by_config[fields[1]]
+        topology = row["topology"]
+        algorithm = row["algorithm"]
+        if algorithm == "DRILL" and "AsymFail" not in topology:
+            continue
+        if algorithm == "DRILLGroup" and "AsymBw" not in topology:
+            continue
+        selected_rows.append(line)
+
+    if expected is not None and len(selected_rows) != expected:
+        raise SystemExit(
+            f"ERROR: asymmetric DRILL selection for {selected_history} matched "
+            f"{len(selected_rows)} runs; expected {expected}"
+        )
+    selected_history.write_text(
+        "".join(row + "\n" for row in selected_rows), encoding="utf-8"
+    )
+    return selected_rows
+
+
 @contextmanager
 def temporary_workdir(label: str, *, dry_run: bool = False) -> Iterator[Path]:
     if dry_run:

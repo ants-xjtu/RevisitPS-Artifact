@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-from artifact_common import add_common_args, resolve_run_paths, run, select_manifest_history, temporary_workdir
+from artifact_common import add_common_args, resolve_run_paths, run, select_asymmetric_manifest_history, temporary_workdir
 
 
 OUTPUT = "fig16_asym_packet_trim_rto"
@@ -15,7 +15,7 @@ def main() -> int:
     paths = resolve_run_paths(args, OUTPUT)
     with temporary_workdir("fig16-history", dry_run=args.dry_run) as work:
         selected = work / "figure16.history"
-        select_manifest_history(
+        select_asymmetric_manifest_history(
             paths.manifest,
             paths.history,
             selected,

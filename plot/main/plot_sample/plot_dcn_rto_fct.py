@@ -18,7 +18,30 @@ def _strip_w(s):
     return _W_SUFFIX_RE.sub("", str(s)) if s is not None else s
 
 
-LB_ORDER = ["ECMP", "Letflow" ,"CONGA" ,"CONWEAVE", "AR"]
+LB_ORDER = [
+    "ECMP", "CONWEAVE", "RPS", "AR", "DRILL", "SGLB",
+    "LETFLOW", "CONGA",
+]
+
+ASYMMETRIC_P99_AXES = {
+    "AsymFail1pct": (5, 90, [5, 20, 40, 60, 90]),
+    "AsymFail10pct": (5, 200, [5, 50, 100, 150, 200]),
+    "AsymBw10pct_R0.5": (5, 300, [5, 100, 200, 300]),
+    "AsymBw20pct_R0.5": (5, 1100, [5, 50, 100, 250, 500, 750, 1100]),
+}
+
+
+def asymmetric_p99_axis_options(name):
+    for marker, options in ASYMMETRIC_P99_AXES.items():
+        if marker in name:
+            return options
+    return None
+
+
+def asymmetric_legend_options(name):
+    if "AsymBw" in name:
+        return 2, 3
+    return None, None
 
 
 def _lb_sort_key(series):
@@ -205,7 +228,7 @@ def place_legend(ax, max_rows, ncol_override=None, first_col_items=None):
     else:
         ncol = max(1, int(np.ceil(n_items / max_rows))) if max_rows > 0 else 1
     handles, labels = _pad_legend_first_column(handles, labels, ncol, first_col_items)
-    ax.legend(
+    legend = ax.legend(
         handles,
         labels,
         fontsize=25,
@@ -221,6 +244,7 @@ def place_legend(ax, max_rows, ncol_override=None, first_col_items=None):
         handlelength=1.4,
         handletextpad=0.2,
     )
+    legend.set_zorder(1000)
 
 
 def draw_one_group(series_list, x_tick_labels, output_prefix, legend_max_rows,
@@ -241,6 +265,8 @@ def draw_one_group(series_list, x_tick_labels, output_prefix, legend_max_rows,
         rec_lower = str(rec).lower()
         if rec_lower == "idealtrimming+slowstart":
             return f"{lb}(Trim + Slow Start)"
+        if rec_lower == "idealtrimming+1/2":
+            return f"{lb}(Trim + 1/2)"
         if rec_lower == "rto+gbn+slowstart":
             return f"{lb}(+Slow Start)"
         if "idealtrimming" in rec_lower:
@@ -354,7 +380,8 @@ def draw_fct_plot(json_path, output_dir, exclude_lb=None,
                   no_trimming=False, no_rto_gbn_slowstart=False,
                   no_flowlet=False, legend_max_rows=99, legend_ncol=None,
                   legend_first_col_items=None, p99_ymin=None, p99_ymax=None,
-                  p99_yticks=None, metric="both"):
+                  p99_yticks=None, metric="both",
+                  asymmetric_paper_p99_axes=False):
     with open(json_path, 'r') as f:
         data = json.load(f)
 
@@ -390,6 +417,12 @@ def draw_fct_plot(json_path, output_dir, exclude_lb=None,
 
     x_tick_labels = series_all[0]["flow_size_buckets_bytes"]
     base_name = os.path.splitext(os.path.basename(json_path))[0]
+    if asymmetric_paper_p99_axes:
+        axis_options = asymmetric_p99_axis_options(base_name)
+        if axis_options is None:
+            raise ValueError(f"No asymmetric P99 axis profile for {base_name}")
+        p99_ymin, p99_ymax, p99_yticks = axis_options
+        legend_ncol, legend_first_col_items = asymmetric_legend_options(base_name)
 
     # ===============================
     # 🔥 按 (rto_high, rto_low) 分组
@@ -449,6 +482,8 @@ def main():
                         help="Fixed major ticks for the P99 panel.")
     parser.add_argument("--metric", choices=("avg", "p99", "both"), default="both",
                         help="Metric panels to render (default: both).")
+    parser.add_argument("--asymmetric-paper-p99-axes", action="store_true",
+                        help="Use the Figure 14 P99 axis range for each asymmetry scenario.")
     args = parser.parse_args()
 
     exclude_lb = list(args.exclude_lb)
@@ -475,7 +510,8 @@ def main():
                       p99_ymin=args.p99_ymin,
                       p99_ymax=args.p99_ymax,
                       p99_yticks=args.p99_yticks,
-                      metric=args.metric)
+                      metric=args.metric,
+                      asymmetric_paper_p99_axes=args.asymmetric_paper_p99_axes)
     else:
         for f in glob.glob(os.path.join(path, "*.json")):
             draw_fct_plot(f, path,
@@ -489,7 +525,8 @@ def main():
                           p99_ymin=args.p99_ymin,
                           p99_ymax=args.p99_ymax,
                           p99_yticks=args.p99_yticks,
-                          metric=args.metric)
+                          metric=args.metric,
+                          asymmetric_paper_p99_axes=args.asymmetric_paper_p99_axes)
 
 
 if __name__ == "__main__":

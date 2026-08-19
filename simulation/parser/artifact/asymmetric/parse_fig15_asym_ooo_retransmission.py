@@ -7,7 +7,7 @@ from artifact_common import (
     copy_matching,
     copy_one,
     resolve_run_paths,
-    select_manifest_history,
+    select_asymmetric_manifest_history,
     temporary_parser_stage,
     temporary_workdir,
 )
@@ -23,7 +23,7 @@ def main() -> int:
     paths = resolve_run_paths(args, OUTPUT)
     with temporary_workdir("fig15-history", dry_run=args.dry_run) as work:
         selected = work / "fig15_asym_ooo_retransmission.history"
-        select_manifest_history(
+        select_asymmetric_manifest_history(
             paths.manifest,
             paths.history,
             selected,

@@ -11,8 +11,9 @@ import lib.py.plot.plot as plot
 
 FONT_FAMILY = "DejaVu Sans"
 
-LB_ORDER = ["RPS", "AR", "DRILLGroup", "SGLB"]
-LB_DISPLAY = {"RPS": "RPS", "AR": "AR", "DRILLGroup": "DRILL", "SGLB": "SGLB"}
+LB_ORDER = ["RPS", "AR", "DRILL", "SGLB"]
+LB_DISPLAY = {lb: lb for lb in LB_ORDER}
+SCENARIO_ORDER = {f"S{index}": index for index in range(1, 5)}
 
 
 def format_k_ticks(value, _):
@@ -91,8 +92,17 @@ def draw_unnecessary_retrans(csv_path, output_path):
     df = pd.read_csv(csv_path, skip_blank_lines=True)
     df = df.dropna(subset=["topo", "lb"])
     df["lb"] = df["lb"].astype(str).str.strip()
+    scenarios = df["topo"].map(short_topo)
+    df = df[
+        ~((df["lb"] == "DRILL") & scenarios.isin({"S3", "S4"}))
+        & ~((df["lb"] == "DRILLGroup") & scenarios.isin({"S1", "S2"}))
+    ].copy()
+    df.loc[df["lb"] == "DRILLGroup", "lb"] = "DRILL"
 
-    topos = list(dict.fromkeys(df["topo"].tolist()))
+    topos = sorted(
+        dict.fromkeys(df["topo"].tolist()),
+        key=lambda topo: SCENARIO_ORDER.get(short_topo(topo), len(SCENARIO_ORDER)),
+    )
     group_labels = [short_topo(t) for t in topos]
 
     vals = {lb: {"drop_count": [], "spur_count": [], "total_count": []} for lb in LB_ORDER}
@@ -130,12 +140,14 @@ def draw_unnecessary_retrans(csv_path, output_path):
         plot.fillstyles[9],   # green solid
         plot.fillstyles[10],  # blue solid
         plot.fillstyles[11],  # orange solid
+        plot.fillstyles[12],
     ]
     hatch_styles = [
         {"edgecolor": plot.colors[0], "fill": False, "linewidth": 2, "hatch": "////"},
         {"edgecolor": plot.colors[1], "fill": False, "linewidth": 2, "hatch": "////"},
         {"edgecolor": plot.colors[2], "fill": False, "linewidth": 2, "hatch": "////"},
         {"edgecolor": plot.colors[3], "fill": False, "linewidth": 2, "hatch": "////"},
+        {"edgecolor": plot.colors[4], "fill": False, "linewidth": 2, "hatch": "////"},
     ]
 
     for i, lb in enumerate(LB_ORDER):
@@ -159,7 +171,11 @@ def draw_unnecessary_retrans(csv_path, output_path):
     p.ax.set_xticklabels(group_labels, fontsize=30)
     p.ax.tick_params(axis="x", labelsize=30, colors="black")
     p.ax.tick_params(axis="y", labelsize=30, colors="black")
-    p.ax.set_ylim(bottom=0, top=400000)
+    max_total = max(
+        max(values["total_count"], default=0)
+        for values in vals.values()
+    )
+    p.ax.set_ylim(bottom=0, top=compute_ymax_with_headroom(max_total))
     p.ax.yaxis.set_major_formatter(mticker.FuncFormatter(format_k_ticks))
     p.ax.grid(False, axis="x")
     p.ax.grid(True, axis="y")

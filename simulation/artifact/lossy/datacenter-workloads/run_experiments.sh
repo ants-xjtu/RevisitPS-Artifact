@@ -36,6 +36,7 @@ lb_label() {
     case "$1" in
         fecmp) echo "ECMP" ;;
         conweave) echo "ConWeave" ;;
+        drill) echo "DRILL" ;;
         adaptive) echo "AR" ;;
         *) echo "$1" ;;
     esac
@@ -89,7 +90,7 @@ run_experiment_group() {
 
 cd "$NS3_ROOT" || exit 1
 artifact_prepare_simulator "$NS3_ROOT" || exit 1
-artifact_tracking_init lossy datacenter-workloads 11 || exit 1
+artifact_tracking_init lossy datacenter-workloads 12 || exit 1
 artifact_result_files_init "$HISTORY_FILE" "$MANIFEST_FILE" || exit 1
 mkdir -p "$LOG_DIR"
 
@@ -98,6 +99,7 @@ cecho "BLUE" "Submitting lossy datacenter experiments"
 # recipe         outputs    topology                       load error workload        cc     pfc irn armode timeout window rtoH rtoL buffer bw  LBs
 run_experiment_group "f11_baseline" "figure11;table6" "leaf_spine_L8_S16_100G_OS1" 80 "0.0" AliStorage2019 dcqcn 0   1   noar   0       104000 320  100  0      100 fecmp conweave
 run_experiment_group "f11_ar_rto"   "figure11;table6" "leaf_spine_L8_S16_100G_OS1" 80 "0.0" AliStorage2019 dcqcn 0   1   ar     2       104000 320  100  0      100 adaptive
+run_experiment_group "f11_ar_trim"  "figure11" "leaf_spine_L8_S16_100G_OS1" 80 "0.0" AliStorage2019 dcqcn 0   2   ar     0       104000 320  100  0      100 adaptive
 run_experiment_group "f11_ar_trim"  "figure11" "leaf_spine_L8_S16_100G_OS1" 80 "0.0" AliStorage2019 dcqcn 0   2   ar     2       104000 320  100  0      100 adaptive
 
 run_experiment_group "f12_baseline"  "figure12;table7" "fat_k8_100G_OS1" 80 "0.0" AliStorage2019 dcqcn 0 1 noar 0 156000 320 100 0 100 fecmp

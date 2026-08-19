@@ -7,6 +7,7 @@ import csv
 import fcntl
 import json
 import os
+import shutil
 import sys
 import tempfile
 from contextlib import contextmanager
@@ -215,6 +216,120 @@ def command_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def rewrite_history(path: Path, removed_config_ids: set[str]) -> None:
+    if not path.is_file():
+        return
+    with path.open("r+", encoding="utf-8") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        rows = handle.readlines()
+        kept = [
+            row for row in rows
+            if len(row.rstrip("\n").split(",")) < 2
+            or row.rstrip("\n").split(",")[1] not in removed_config_ids
+        ]
+        handle.seek(0)
+        handle.truncate()
+        handle.writelines(kept)
+        handle.flush()
+        fcntl.flock(handle, fcntl.LOCK_UN)
+    path.chmod(0o644)
+
+
+def rewrite_shared_history(path: Path, removed_config_ids: set[str]) -> None:
+    if not path.is_file():
+        return
+    output_markers = {
+        f"/mix/output/{config_id}/" for config_id in removed_config_ids
+    }
+    with path.open("r+", encoding="utf-8") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        rows = handle.readlines()
+        kept = []
+        for row in rows:
+            fields = row.rstrip("\n").split(",")
+            if len(fields) > 1 and fields[1] in removed_config_ids:
+                continue
+            if any(marker in row for marker in output_markers):
+                continue
+            kept.append(row)
+        handle.seek(0)
+        handle.truncate()
+        handle.writelines(kept)
+        handle.flush()
+        fcntl.flock(handle, fcntl.LOCK_UN)
+    path.chmod(0o644)
+
+
+def command_reset_tasks(args: argparse.Namespace) -> int:
+    run_dir = args.run_dir.resolve()
+    recipes = set(args.recipe)
+    with locked(run_dir):
+        state = load_state(run_dir)
+        manifest_path = run_dir / "manifest.csv"
+        if not manifest_path.is_file():
+            raise RuntimeError(f"missing manifest file: {manifest_path}")
+
+        with manifest_path.open("r+", newline="", encoding="utf-8") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            reader = csv.DictReader(handle)
+            fieldnames = reader.fieldnames
+            rows = list(reader)
+            if not fieldnames:
+                raise RuntimeError(f"manifest has no header: {manifest_path}")
+            removed_rows = [row for row in rows if row.get("recipe") in recipes]
+            kept_rows = [row for row in rows if row.get("recipe") not in recipes]
+            removed_task_ids = {row["task_id"] for row in removed_rows}
+            removed_config_ids = {
+                row["config_id"] for row in removed_rows if row.get("config_id")
+            }
+
+            matching_state_ids = {
+                task_id
+                for task_id, task in state["tasks"].items()
+                if task_id in removed_task_ids
+                or any(task_id.startswith(f"{recipe}__") for recipe in recipes)
+                or str(task.get("config_id", "")) in removed_config_ids
+            }
+            running = sorted(
+                task_id for task_id in matching_state_ids
+                if state["tasks"][task_id].get("status") == "running"
+            )
+            if running:
+                raise RuntimeError(
+                    "cannot reset running tasks: " + ", ".join(running)
+                )
+
+            handle.seek(0)
+            handle.truncate()
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(kept_rows)
+            handle.flush()
+            fcntl.flock(handle, fcntl.LOCK_UN)
+        manifest_path.chmod(0o644)
+
+        for task_id in matching_state_ids:
+            del state["tasks"][task_id]
+        state["state"] = "running" if any(
+            task.get("status") == "running" for task in state["tasks"].values()
+        ) else "failed"
+        state["finished_at"] = None
+        save_state(run_dir, state)
+
+        rewrite_history(run_dir / "history" / "all.history", removed_config_ids)
+        if args.ns3_root is not None:
+            ns3_root = args.ns3_root.resolve()
+            rewrite_shared_history(
+                ns3_root / "mix" / ".history", removed_config_ids
+            )
+            for config_id in removed_config_ids:
+                shutil.rmtree(ns3_root / "mix" / "output" / config_id, ignore_errors=True)
+
+    print(f"reset_tasks={len(matching_state_ids)}")
+    print(f"removed_configs={len(removed_config_ids)}")
+    return 0
+
+
 def command_task_completed(args: argparse.Namespace) -> int:
     state = load_state(args.run_dir.resolve())
     task = state["tasks"].get(args.task_id)
@@ -271,6 +386,12 @@ def build_parser() -> argparse.ArgumentParser:
     show = subparsers.add_parser("show")
     show.add_argument("--run-dir", type=Path, required=True)
     show.set_defaults(function=command_show)
+
+    reset_tasks = subparsers.add_parser("reset-tasks")
+    reset_tasks.add_argument("--run-dir", type=Path, required=True)
+    reset_tasks.add_argument("--recipe", action="append", required=True)
+    reset_tasks.add_argument("--ns3-root", type=Path)
+    reset_tasks.set_defaults(function=command_reset_tasks)
 
     task_completed = subparsers.add_parser("task-completed")
     task_completed.add_argument("--run-dir", type=Path, required=True)

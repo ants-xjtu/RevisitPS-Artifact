@@ -38,6 +38,7 @@ lb_label() {
         conweave) echo "ConWeave" ;;
         rps) echo "RPS" ;;
         adaptive) echo "AR" ;;
+        drill) echo "DRILL" ;;
         drillgroup) echo "DRILLGroup" ;;
         sglb) echo "SGLB" ;;
         *) echo "$1" ;;
@@ -100,13 +101,13 @@ cecho "BLUE" "Submitting asymmetric datacenter experiments"
 
 # recipe             outputs                      topology                                     load error workload  cc    pfc irn armode timeout window rtoH rtoL buffer bw  LBs
 run_experiment_group "f14_baseline"     "figure14"                   "leafspine_L8_S16_100G_AsymFail1pct_OS1"     80   "0.0" FbHdp2015 dcqcn 0   1   noar   0       104000 320  320  0      100 fecmp conweave
-run_experiment_group "f14_packet_other" "figure14;figure15"          "leafspine_L8_S16_100G_AsymFail1pct_OS1"     80   "0.0" FbHdp2015 dcqcn 0   1   ar     2       104000 320  320  0      100 rps adaptive drillgroup sglb
+run_experiment_group "f14_packet_other" "figure14;figure15"          "leafspine_L8_S16_100G_AsymFail1pct_OS1"     80   "0.0" FbHdp2015 dcqcn 0   1   ar     2       104000 320  320  0      100 rps adaptive drill sglb
 run_experiment_group "f14_baseline"     "figure14"                   "leafspine_L8_S16_100G_AsymFail10pct_OS1"    80   "0.0" FbHdp2015 dcqcn 0   1   noar   0       104000 320  320  0      100 fecmp conweave
-run_experiment_group "f14_packet_other" "figure14;figure15"          "leafspine_L8_S16_100G_AsymFail10pct_OS1"    80   "0.0" FbHdp2015 dcqcn 0   1   ar     2       104000 320  320  0      100 rps adaptive drillgroup sglb
+run_experiment_group "f14_packet_other" "figure14;figure15"          "leafspine_L8_S16_100G_AsymFail10pct_OS1"    80   "0.0" FbHdp2015 dcqcn 0   1   ar     2       104000 320  320  0      100 rps adaptive drill sglb
 run_experiment_group "f14_baseline"     "figure14"                   "leafspine_L8_S16_100G_AsymBw20pct_R0.5_OS1" 80   "0.0" FbHdp2015 dcqcn 0   1   noar   0       104000 320  320  0      100 fecmp conweave
 run_experiment_group "f14_packet_other" "figure14;figure15"          "leafspine_L8_S16_100G_AsymBw20pct_R0.5_OS1" 80   "0.0" FbHdp2015 dcqcn 0   1   ar     2       104000 320  320  0      100 rps adaptive drillgroup sglb
 run_experiment_group "f14_baseline"     "figure14"                   "leafspine_L8_S16_100G_AsymBw10pct_R0.5_OS1" 80   "0.0" FbHdp2015 dcqcn 0   1   noar   0       104000 320  320  0      100 fecmp conweave
-run_experiment_group "f14_packet_s3"    "figure14;figure15;figure16" "leafspine_L8_S16_100G_AsymBw10pct_R0.5_OS1" 80   "0.0" FbHdp2015 dcqcn 0   1   ar     2       104000 320  320  0      100 rps adaptive drillgroup sglb
+run_experiment_group "f14_packet_s3"    "figure14;figure15;figure16;table8" "leafspine_L8_S16_100G_AsymBw10pct_R0.5_OS1" 80   "0.0" FbHdp2015 dcqcn 0   1   ar     2       104000 320  320  0      100 rps adaptive drillgroup sglb
 run_experiment_group "f16_trim"         "figure16"                   "leafspine_L8_S16_100G_AsymBw10pct_R0.5_OS1" 80   "0.0" FbHdp2015 dcqcn 0   2   ar     2       104000 320  320  0      100 rps adaptive
 
 cecho "GREEN" "All experiment groups submitted; waiting for background jobs..."

@@ -53,7 +53,10 @@ LEGEND_FONTSIZE = 25
 
 
 # ── Display/order configuration ───────────────────────────────────────────────
-LB_ORDER = ["ECMP", "LetFlow", "CONGA", "ConWeave", "DRILL", "RPS", "AR"]
+LB_ORDER = [
+    "ECMP", "ConWeave", "RPS", "AR", "DRILL", "SGLB",
+    "LetFlow", "CONGA",
+]
 CC_ORDER = ["DCQCN", "NONE"]
 
 # timeout_mode is the source of truth for the "+1/N" suffix: any recovery
@@ -129,7 +132,7 @@ def _nice_top(x):
     return 10 * exp
 
 
-def _place_legend(ax, n_items, legend_max_rows):
+def _place_legend(ax, n_items, legend_max_rows, loc="best"):
     """Single legend where column 0 is filled with up to ``legend_max_rows``
     entries before column 1 starts, and so on. Matplotlib's ``ncol`` divides
     entries evenly across columns (e.g. 6 items + ncol=2 → 3+3), so we pad
@@ -157,7 +160,7 @@ def _place_legend(ax, n_items, legend_max_rows):
         handles, labels,
         fontsize=LEGEND_FONTSIZE,
         prop={"family": FONT_FAMILY, "size": LEGEND_FONTSIZE},
-        loc="best",
+        loc=loc,
         ncol=ncol,
         frameon=True,
         edgecolor="dimgray",
@@ -171,6 +174,10 @@ def _place_legend(ax, n_items, legend_max_rows):
     )
     legend.set_zorder(200)
     return legend
+
+
+def _scenario_legend_location(load_type):
+    return "upper left" if load_type == "Alltoall" else "best"
 
 
 def _nice_step(x):
@@ -256,11 +263,8 @@ def _drop_bare_rto_when_timeouted(series_map, fc):
     return series_map
 
 
-_LB_DISPLAY = {"DRILLGroup": "DRILL"}
-
-
 def _display_lb(lb):
-    return _LB_DISPLAY.get(lb, lb)
+    return lb
 
 
 _HIDE_RECOVERY = False
@@ -362,13 +366,32 @@ def _normalize_with_ideal(data):
     return data
 
 
+def _apply_scenario_drill_policy(data):
+    topology = data.get("metadata", {}).get("topology", "")
+    use_group = "AsymBw" in topology
+    selected = []
+    for series in data.get("data_series", []):
+        lb = series.get("load_balancing_mode")
+        if lb == "DRILL" and use_group:
+            continue
+        if lb == "DRILLGroup" and not use_group:
+            continue
+        if lb == "DRILLGroup":
+            series = dict(series)
+            series["load_balancing_mode"] = "DRILL"
+        selected.append(series)
+    data = dict(data)
+    data["data_series"] = selected
+    return data
+
+
 def _group_by_topo_fc(json_files):
     """Group JSON files by (topology, flow_control) and keep per load_type."""
     groups = {}
     for jf in json_files:
         with open(jf, "r") as f:
             data = json.load(f)
-        data = _normalize_with_ideal(data)
+        data = _apply_scenario_drill_policy(_normalize_with_ideal(data))
         meta = data.get("metadata", {})
         topo = meta.get("topology", "unknown")
         fc = meta.get("flow_control", "unknown")
@@ -491,7 +514,8 @@ def draw_combined(topo, fc, workload_data, output_dir, dcqcn_only, normalize,
     if dcqcn_only:
         parts.append("dcqcn")
     out_path = os.path.join(output_dir, "_".join(parts) + ".pdf")
-    plt.savefig(out_path, bbox_inches="tight")
+    fig.tight_layout()
+    fig.savefig(out_path)
     plt.close()
     print(f"  [combined | {fc} | {topo}] -> {out_path}")
 
@@ -593,7 +617,12 @@ def draw_by_scenario(load_type, fc, scenario_to_data, output_dir,
     ax.tick_params(axis="x", labelsize=X_TICK_FONTSIZE)
     ax.tick_params(axis="y", labelsize=Y_TICK_FONTSIZE)
 
-    legend = _place_legend(ax, len(series_keys), legend_max_rows)
+    legend = _place_legend(
+        ax,
+        len(series_keys),
+        legend_max_rows,
+        loc=_scenario_legend_location(load_type),
+    )
     _apply_plot_style(ax, legend)
 
     all_vals = []
@@ -628,7 +657,8 @@ def draw_by_scenario(load_type, fc, scenario_to_data, output_dir,
     if dcqcn_only:
         parts.append("dcqcn")
     out_path = os.path.join(output_dir, "_".join(parts) + ".pdf")
-    plt.savefig(out_path, bbox_inches="tight")
+    fig.tight_layout()
+    fig.savefig(out_path)
     plt.close()
     print(f"  [scenario | {load_type} | {fc}] -> {out_path}")
 
@@ -639,7 +669,7 @@ def _group_by_loadtype_fc_scenario(json_files):
     for jf in json_files:
         with open(jf, "r") as f:
             data = json.load(f)
-        data = _normalize_with_ideal(data)
+        data = _apply_scenario_drill_policy(_normalize_with_ideal(data))
         meta = data.get("metadata", {})
         topo = meta.get("topology", "")
         scen = _scenario_of(topo)
@@ -655,7 +685,7 @@ def draw_one_file(json_path, output_dir, dcqcn_only, normalize,
                   raw_ytop, raw_ystep, no_trimming, legend_max_rows):
     with open(json_path, "r") as f:
         data = json.load(f)
-    data = _normalize_with_ideal(data)
+    data = _apply_scenario_drill_policy(_normalize_with_ideal(data))
 
     meta = data.get("metadata", {})
     topo = meta.get("topology", "unknown")
@@ -739,7 +769,8 @@ def draw_one_file(json_path, output_dir, dcqcn_only, normalize,
     if dcqcn_only:
         parts.append("dcqcn")
     out_path = os.path.join(output_dir, "_".join(parts) + ".pdf")
-    plt.savefig(out_path, bbox_inches="tight")
+    fig.tight_layout()
+    fig.savefig(out_path)
     plt.close()
     print(f"  [{load_type} | {msg_size} | {loss_mode} | {topo}] -> {out_path}")
 

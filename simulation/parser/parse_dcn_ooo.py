@@ -13,7 +13,7 @@ cc_modes = {
 }
 lb_modes = {
     0: "ECMP", 1: "RPS", 2: "DRILL", 3: "CONGA", 4: "AR",
-    5: "WAdapt", 6: "LetFlow", 7: "DrillGroup", 9: "ConWeave", 10: "SGLB",
+    5: "WAdapt", 6: "LetFlow", 7: "DRILLGroup", 9: "ConWeave", 10: "SGLB",
 }
 irn_modes = {
     0: "NAK+GBN", 1: "NAK+SR", 2: "DCP", 3: "Ideal",

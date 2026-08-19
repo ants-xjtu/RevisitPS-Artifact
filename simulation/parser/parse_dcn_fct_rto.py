@@ -226,6 +226,8 @@ def main():
                     elif timeout_mode == '2':
                         if recovery_label == "RTO+GBN":
                             recovery_label = f"RTO+GBN+Now"
+                        elif recovery_label == "IdealTrimming":
+                            recovery_label = "IdealTrimming+1/2"
 
 
                     lb_mode_str = lb_modes.get(lb_mode_id)

@@ -40,6 +40,7 @@ lb_label() {
         conweave) echo "ConWeave" ;;
         rps) echo "RPS" ;;
         adaptive) echo "AR" ;;
+        drill) echo "DRILL" ;;
         drillgroup) echo "DRILLGroup" ;;
         sglb) echo "SGLB" ;;
         *) echo "$1" ;;
@@ -106,15 +107,15 @@ cecho "BLUE" "Submitting asymmetric collective-communication experiments"
 # S1: 1% failed links
 # recipe                   outputs    topology                                     netload  error workload      cc    pfc irn armode timeout window            rtoH rtoL buffer bw  group pattern LBs
 run_experiment_group "f17_a2a_baseline"       "figure17" "leafspine_L8_S16_100G_AsymFail1pct_OS1"     22469485 "0.0" Alltoall      dcqcn 0   1   noar   0       "$AI_LEAF_WINDOW" 320  100  0      100 8     none    fecmp conweave
-run_experiment_group "f17_a2a_packet"         "figure17" "leafspine_L8_S16_100G_AsymFail1pct_OS1"     22469485 "0.0" Alltoall      dcqcn 0   1   ar     2       "$AI_LEAF_WINDOW" 320  100  0      100 8     none    rps adaptive drillgroup sglb
+run_experiment_group "f17_a2a_packet"         "figure17" "leafspine_L8_S16_100G_AsymFail1pct_OS1"     22469485 "0.0" Alltoall      dcqcn 0   1   ar     2       "$AI_LEAF_WINDOW" 320  100  0      100 8     none    rps adaptive drill sglb
 run_experiment_group "f17_allreduce_baseline" "figure17" "leafspine_L8_S16_100G_AsymFail1pct_OS1"     11234742 "0.0" RingAllreduce dcqcn 0   1   noar   0       "$AI_RING_WINDOW" 320  100  0      100 8     none    fecmp conweave
-run_experiment_group "f17_allreduce_packet"   "figure17" "leafspine_L8_S16_100G_AsymFail1pct_OS1"     11234742 "0.0" RingAllreduce dcqcn 0   1   ar     2       "$AI_RING_WINDOW" 320  100  0      100 8     none    rps adaptive drillgroup sglb
+run_experiment_group "f17_allreduce_packet"   "figure17" "leafspine_L8_S16_100G_AsymFail1pct_OS1"     11234742 "0.0" RingAllreduce dcqcn 0   1   ar     2       "$AI_RING_WINDOW" 320  100  0      100 8     none    rps adaptive drill sglb
 
 # S2: 10% failed links
 run_experiment_group "f17_a2a_baseline"       "figure17" "leafspine_L8_S16_100G_AsymFail10pct_OS1"    22469485 "0.0" Alltoall      dcqcn 0   1   noar   0       "$AI_LEAF_WINDOW" 320  100  0      100 8     none    fecmp conweave
-run_experiment_group "f17_a2a_packet"         "figure17" "leafspine_L8_S16_100G_AsymFail10pct_OS1"    22469485 "0.0" Alltoall      dcqcn 0   1   ar     2       "$AI_LEAF_WINDOW" 320  100  0      100 8     none    rps adaptive drillgroup sglb
+run_experiment_group "f17_a2a_packet"         "figure17" "leafspine_L8_S16_100G_AsymFail10pct_OS1"    22469485 "0.0" Alltoall      dcqcn 0   1   ar     2       "$AI_LEAF_WINDOW" 320  100  0      100 8     none    rps adaptive drill sglb
 run_experiment_group "f17_allreduce_baseline" "figure17" "leafspine_L8_S16_100G_AsymFail10pct_OS1"    11234742 "0.0" RingAllreduce dcqcn 0   1   noar   0       "$AI_RING_WINDOW" 320  100  0      100 8     none    fecmp conweave
-run_experiment_group "f17_allreduce_packet"   "figure17" "leafspine_L8_S16_100G_AsymFail10pct_OS1"    11234742 "0.0" RingAllreduce dcqcn 0   1   ar     2       "$AI_RING_WINDOW" 320  100  0      100 8     none    rps adaptive drillgroup sglb
+run_experiment_group "f17_allreduce_packet"   "figure17" "leafspine_L8_S16_100G_AsymFail10pct_OS1"    11234742 "0.0" RingAllreduce dcqcn 0   1   ar     2       "$AI_RING_WINDOW" 320  100  0      100 8     none    rps adaptive drill sglb
 
 # S3: 10% asymmetric-bandwidth links, ratio 0.5
 run_experiment_group "f17_a2a_baseline"       "figure17" "leafspine_L8_S16_100G_AsymBw10pct_R0.5_OS1" 22469485 "0.0" Alltoall      dcqcn 0   1   noar   0       "$AI_LEAF_WINDOW" 320  100  0      100 8     none    fecmp conweave

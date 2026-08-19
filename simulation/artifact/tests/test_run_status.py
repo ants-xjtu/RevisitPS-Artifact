@@ -100,6 +100,98 @@ class RunStatusTest(unittest.TestCase):
             for filename in ("status", "status.json"):
                 self.assertEqual((run_dir / filename).stat().st_mode & 0o777, 0o644)
 
+    def test_reset_tasks_removes_stopped_recipe_data(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ns3_root = Path(temp_dir) / "simulation"
+            run_dir = ns3_root / "artifact" / "results" / "trial"
+            self.run_tool(
+                "init", "--run-dir", str(run_dir), "--section", "lossy",
+                "--workload", "datacenter-workloads", "--expected", "2",
+            )
+            history = run_dir / "history" / "all.history"
+            history.write_text("date,101,keep\ndate,202,trim\n", encoding="utf-8")
+            shared_history = ns3_root / "mix" / ".history"
+            shared_history.parent.mkdir(parents=True)
+            shared_history.write_text(
+                "date,101,keep\n"
+                "/simulator /mix/output/101/config.txt\n"
+                "date,202,trim\n"
+                "/simulator /mix/output/202/config.txt\n",
+                encoding="utf-8",
+            )
+            output = ns3_root / "mix" / "output" / "202"
+            output.mkdir(parents=True)
+            (output / "result").write_text("old\n", encoding="utf-8")
+
+            self.write_manifest(run_dir, task_id="task-keep")
+            with (run_dir / "manifest.csv").open(
+                "a", newline="", encoding="utf-8"
+            ) as handle:
+                writer = csv.DictWriter(handle, fieldnames=MANIFEST_FIELDS)
+                writer.writerow({
+                    "task_id": "task-trim",
+                    "recipe": "f11_ar_trim",
+                    "paper_outputs": "figure11",
+                    "config_id": "202",
+                    "topology": "leaf_spine_L8_S16_100G_OS1",
+                    "workload": "AliStorage2019",
+                    "group_size": "1",
+                    "algorithm": "AR",
+                    "timeout_mode": "2",
+                    "command": "python3 run.py",
+                })
+            self.run_tool(
+                "update", "--run-dir", str(run_dir), "--task-id", "task-keep",
+                "--status", "completed", "--config-id", "101",
+            )
+            self.run_tool(
+                "update", "--run-dir", str(run_dir), "--task-id", "task-trim",
+                "--status", "failed", "--config-id", "202",
+            )
+
+            result = self.run_tool(
+                "reset-tasks", "--run-dir", str(run_dir),
+                "--recipe", "f11_ar_trim", "--ns3-root", str(ns3_root),
+            )
+
+            self.assertIn("reset_tasks=1", result.stdout)
+            self.assertEqual(history.read_text(encoding="utf-8"), "date,101,keep\n")
+            self.assertEqual(
+                shared_history.read_text(encoding="utf-8"),
+                "date,101,keep\n/simulator /mix/output/101/config.txt\n",
+            )
+            self.assertFalse(output.exists())
+            with (run_dir / "manifest.csv").open(newline="", encoding="utf-8") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual([row["config_id"] for row in rows], ["101"])
+            state = json.loads((run_dir / "status.json").read_text(encoding="utf-8"))
+            self.assertEqual(set(state["tasks"]), {"task-keep"})
+            self.assertEqual(state["state"], "failed")
+
+    def test_reset_tasks_rejects_running_recipe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir) / "trial"
+            self.run_tool(
+                "init", "--run-dir", str(run_dir), "--section", "lossy",
+                "--workload", "datacenter-workloads", "--expected", "1",
+            )
+            self.write_manifest(
+                run_dir, task_id="task-trim", recipe="f11_ar_trim"
+            )
+            self.run_tool(
+                "update", "--run-dir", str(run_dir), "--task-id", "task-trim",
+                "--status", "running", "--config-id", "101",
+            )
+
+            result = self.run_tool(
+                "reset-tasks", "--run-dir", str(run_dir),
+                "--recipe", "f11_ar_trim", check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("cannot reset running tasks", result.stderr)
+            self.assertIn("f11_ar_trim", (run_dir / "manifest.csv").read_text())
+
             self.run_tool(
                 "update", "--run-dir", str(run_dir), "--task-id", "task-a",
                 "--status", "running",
