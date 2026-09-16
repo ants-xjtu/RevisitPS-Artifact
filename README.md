@@ -13,10 +13,6 @@ RevisitPS-Artifact/
 `-- testbed/      # Tofino and RDMA testbed automation
 ```
 
-The simulation and plotting components are self-contained directories, not Git
-submodules. Their original repositories are listed under
-[Component Sources](#component-sources).
-
 ## Prerequisites
 
 - Docker for building and running the simulator.
@@ -118,14 +114,3 @@ Generated files are ignored by Git. The main locations are:
 Use a distinct `run-id` for each independent or concurrent invocation. The ID
 keeps status, metadata, parsed data, and paper outputs associated with the same
 run.
-
-## Component Sources
-
-- `simulation/` was imported from
-  [majinchao2002/load-balance](https://github.com/majinchao2002/load-balance),
-  branch `ai-workload-fixes`, at commit `cbc6dd4`.
-- `plot/` was imported from
-  [majinchao2002/monorepo](https://github.com/majinchao2002/monorepo), branch
-  `plb`, at commit `86e6371`.
-- Nested component Git metadata was removed so this artifact can be used as one
-  repository.
