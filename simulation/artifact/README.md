@@ -1,27 +1,46 @@
-# Simulation Artifact
+# Simulation Artifact Workflow
 
-Run simulation commands from `simulation/`. Simulation runs require the Docker
-environment described in the repository-level [README](../../README.md).
-Parsing and plotting can run on the host.
+Run all commands in this document from `simulation/`.
 
-## Quick Start
+- Run simulations in the Docker environment described in the repository
+  [README](../../README.md).
+- Parse completed runs in Docker. Host parsing is also supported when the
+  Python dependencies are installed and all input/output paths are writable.
+- Plot on the host after installing Bazel as described in
+  [plot/README.md](../../plot/README.md).
 
-Inspect commands without running experiments:
+## Typical Workflow
+
+Inside Docker, run one section, inspect its status, and parse it after all
+selected tasks complete:
 
 ```bash
-./artifact/run_artifact.sh --section all --stage all --dry-run
+./artifact/run_artifact.sh \
+  --section lossless \
+  --stage run \
+  --run-id trial1
+
+./artifact/run_artifact.sh \
+  --section lossless \
+  --stage status \
+  --run-id trial1
+
+./artifact/run_artifact.sh \
+  --section lossless \
+  --stage parse \
+  --run-id trial1
 ```
 
-Run, monitor, parse, and plot one section:
+On the host, render the parsed results:
 
 ```bash
-./artifact/run_artifact.sh --section lossless --stage run --run-id trial1
-./artifact/run_artifact.sh --section lossless --stage status --run-id trial1
-./artifact/run_artifact.sh --section lossless --stage parse --run-id trial1
-./artifact/run_artifact.sh --section lossless --stage plot --run-id trial1
+./artifact/run_artifact.sh \
+  --section lossless \
+  --stage plot \
+  --run-id trial1
 ```
 
-Run only one workload family:
+Select only one workload family when needed:
 
 ```bash
 ./artifact/run_artifact.sh \
@@ -31,7 +50,7 @@ Run only one workload family:
   --run-id trial1
 ```
 
-Continue an interrupted run or submit only missing and failed tasks:
+Continue an interrupted run, or submit only failed and missing tasks:
 
 ```bash
 ./artifact/run_artifact.sh \
@@ -54,17 +73,33 @@ Continue an interrupted run or submit only missing and failed tasks:
 --spine-id ID     Figure 10 spine node; default is 136
 ```
 
-Use a different run ID for each independent concurrent command. A run can be
-parsed only after its status is `completed`.
+Always specify a meaningful `run-id` to identify the results of each run. Use a
+different ID for each independent concurrent command. Reusing an ID for the run stage
+requires `--resume`. Datacenter and collective-communication families execute
+sequentially within one command; separate commands with different run IDs can
+execute concurrently.
 
-## Workload Commands
+The combined `--stage all` mode runs all stages in one environment. Because the
+provided simulation image does not include Bazel, use separate `run`, `parse`,
+and host-side `plot` commands for normal reproduction. It remains useful with
+`--dry-run` to inspect all generated commands.
+
+## Paper Outputs
+
+| Section | Workload family | Paper outputs |
+| --- | --- | --- |
+| Lossless | Datacenter | Figures 4, 5, 6, and 9; Tables 4 and 5 |
+| Lossless | Collective communication | Figures 7, 8, and 10 |
+| Lossy | Datacenter | Figures 11 and 12; Tables 6 and 7 |
+| Lossy | Collective communication | Figure 13 |
+| Asymmetric | Datacenter | Figures 14, 15, and 16; Table 8 |
+| Asymmetric | Collective communication | Figure 17 |
+
+Workload-specific command references:
 
 - [Lossless](lossless/README.md)
 - [Lossy](lossy/README.md)
 - [Asymmetric](asymmetric/README.md)
-
-Each section contains separate README files for datacenter and collective
-communication workloads.
 
 ## Results
 
@@ -82,14 +117,17 @@ artifact/results/<section>/<workload-family>/runs/<run-id>/
   tables/
 ```
 
-Raw simulator output is stored under `mix/output/`.
+Raw simulator output is stored under `mix/output/<config-id>/`. The manifest
+associates each configuration with its paper outputs, while `status.json`
+records pending, running, completed, and failed tasks.
 
 ## Validation
 
 These checks do not run experiments:
 
 ```bash
-find artifact -name '*.sh' -type f -exec bash -n {} +
-PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s artifact/tests -p 'test_*.py' -v
+find artifact -name '*.sh' -type f -exec bash -n {} \;
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+  -s artifact/tests -p 'test_*.py' -v
 ./artifact/run_artifact.sh --section all --stage all --dry-run
 ```

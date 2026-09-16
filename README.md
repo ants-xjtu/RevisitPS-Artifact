@@ -1,100 +1,131 @@
 # RevisitPS Artifact
 
-This artifact accompanies the paper `Revisiting Network Support for Packet-level Load-balancing in RoCE`. The paper PDF is a local reference copy and is not tracked in this repository. It combines the simulation artifact, testbed automation, and Bazel plotting workspace in a single top-level repository.
+This repository contains the artifact for *Revisiting Network Support for
+Packet-level Load-balancing in RoCE*. It packages the simulator, the plotting
+code, and the testbed automation in one repository.
 
 ## Repository Layout
 
 ```text
 RevisitPS-Artifact/
-|-- simulation/   # ns-3.19 simulator and managed paper artifact workflow
-|-- plot/         # Bazel plotting workspace used by simulation/artifact
+|-- simulation/   # ns-3.19 simulator and managed experiment workflow
+|-- plot/         # Bazel workspace for paper figures
 `-- testbed/      # Tofino and RDMA testbed automation
 ```
 
-## Component Sources
+The simulation and plotting components are self-contained directories, not Git
+submodules. Their original repositories are listed under
+[Component Sources](#component-sources).
 
-- `simulation/` was imported from `git@github.com:majinchao2002/load-balance.git`, branch `ai-workload-fixes`, commit `cbc6dd4`.
-- `plot/` was imported from `git@github.com:majinchao2002/monorepo.git`, branch `plb`, commit `86e6371`.
-- Nested component `.git` directories are intentionally removed so this artifact behaves as one repository.
+## Prerequisites
 
-## Quick Start
+- Docker for building and running the simulator.
+- Bazelisk or Bazel 6.5.0 for plotting on the host.
+- Sufficient CPU, memory, and disk space for the selected simulation section.
 
-Read the component README files first:
+The testbed artifact has additional hardware and deployment requirements; see
+[testbed/README.md](testbed/README.md).
 
-```bash
-less simulation/README.md
-less simulation/artifact/README.md
-less plot/README.md
-less testbed/README.md
-```
+## Simulation Quick Start
 
-This packaged artifact uses `simulation/` and `plot/` consistently for simulator and plotting paths.
-
-## Simulation Docker
-
-From the artifact root:
+From the repository root, build the image and create a detached container:
 
 ```bash
 docker build -t revisitps-sim:artifact -f simulation/Dockerfile simulation
 docker run -dit --name revisitps-sim \
+  --user "$(id -u):$(id -g)" \
+  --env HOME=/tmp \
   -v "$(pwd)":/artifact \
   -w /artifact/simulation \
   revisitps-sim:artifact bash
 docker exec -it revisitps-sim bash
 ```
 
-Inside the container:
+Inside the container, build the simulator, run one section, monitor it, and
+parse the completed results:
 
 ```bash
 ./waf configure --build-profile=optimized
 ./waf
+
+./artifact/run_artifact.sh \
+  --section lossless \
+  --stage run \
+  --run-id trial1
+
+./artifact/run_artifact.sh \
+  --section lossless \
+  --stage status \
+  --run-id trial1
+
+./artifact/run_artifact.sh \
+  --section lossless \
+  --stage parse \
+  --run-id trial1
 ```
 
-Use `simulation/artifact/run_artifact.sh --dry-run` to inspect managed artifact commands without running experiments.
-Keep the detached container while experiments run; remove it after the run with
-`docker rm -f revisitps-sim`. Parsing and plotting do not require Docker and can
-run on the host after the simulation stage finishes.
+The `--user` setting keeps files in the bind mount owned by the host account.
+The `run` command waits until all selected experiment groups finish. Open a
+second terminal and use `docker exec -it revisitps-sim bash` to inspect status
+while it is running. To continue an interrupted run or rerun only failed and
+missing tasks, add `--resume` to the original `run` command.
 
-## Managed Simulation Artifact
+Parsing may also run on a host with the documented Python dependencies, as long
+as the raw and result directories are writable. Running it in the container is
+the supported default and avoids bind-mount ownership differences.
 
-The managed workflow lives under `simulation/artifact/`:
+## Plotting Results
+
+The simulation image does not include Bazel. Install Bazelisk as described in
+[plot/README.md](plot/README.md), then run the plot stage on the host:
+
+```bash
+cd plot
+bazel build //main/plot_artifact/... //main/plot_sample:all
+
+cd ../simulation
+./artifact/run_artifact.sh \
+  --section lossless \
+  --stage plot \
+  --run-id trial1
+```
+
+Use `--section lossy` or `--section asymmetric` for the other paper sections.
+Use `--workload datacenter-workloads` or
+`--workload collective-communication-workloads` to select one workload family.
+Detailed commands, result paths, and the paper output map are in
+[simulation/artifact/README.md](simulation/artifact/README.md).
+
+From the repository root, inspect the complete managed command set without
+running experiments:
 
 ```bash
 cd simulation
 ./artifact/run_artifact.sh --section all --stage all --dry-run
-./artifact/run_artifact.sh --section lossless --stage all --run-id trial1
-./artifact/run_artifact.sh --section lossless --stage run --run-id trial1 --resume
-./artifact/run_artifact.sh --section lossless --workload datacenter-workloads --stage parse --run-id trial1
-./artifact/run_artifact.sh --section lossless --stage status --run-id trial1
-./artifact/run_artifact.sh --section lossy --stage parse --run-id trial1
-./artifact/run_artifact.sh --section asymmetric --stage plot --run-id trial1
 ```
-
-Supported sections are `lossless`, `lossy`, `asymmetric`, and `all`. Workload
-filters are `datacenter-workloads`, `collective-communication-workloads`, and
-`all`. Supported stages are `run`, `parse`, `plot`, `status`, and `all`. Plot
-stages call Bazel targets under the sibling `plot/` workspace. Lossless managed
-runs write per-task progress and history directly under their `run-id`; use a
-different `run-id` for each independent concurrent invocation. Use `--resume`
-to attach to an active run or rerun only failed or missing tasks; running and
-completed tasks are not submitted again.
-Within each selected section, datacenter and collective-communication workload
-families run sequentially. A failed family does not skip the remaining family;
-the command returns nonzero after all selected families have been attempted.
-Concurrent simulation invocations serialize the incremental Waf build, then
-run the resulting simulator binary directly so experiments do not rebuild it.
-
-
-## Testbed
-
-The testbed component is under `testbed/`. It requires SSH access to servers and switches, passwordless sudo on servers, and the appropriate Tofino SDE environment on the switch. See `testbed/README.md`.
 
 ## Generated Outputs
 
-Generated build products, logs, traces, simulation results, parser outputs, figures, and Bazel outputs are ignored by the top-level `.gitignore`. Key locations are:
+Generated files are ignored by Git. The main locations are:
 
-- `simulation/mix/output/`: raw ns-3 run outputs.
-- `simulation/artifact/results/`: managed status, per-run logs, one canonical history, JSON, tables, and final figures.
+- `simulation/mix/output/`: raw ns-3 outputs.
+- `simulation/artifact/results/`: run status, logs, histories, parsed data,
+  tables, and figures.
 - `simulation/logs/`: simulator batch logs.
-- `plot/bazel-*`: Bazel symlinks and outputs.
-- `testbed/logs/`, `testbed/data/`, `testbed/trace/`: testbed runtime outputs.
+- `plot/bazel-*`: Bazel outputs and convenience symlinks.
+- `testbed/logs/`, `testbed/data/`, and `testbed/trace/`: testbed outputs.
+
+Use a distinct `run-id` for each independent or concurrent invocation. The ID
+keeps status, metadata, parsed data, and paper outputs associated with the same
+run.
+
+## Component Sources
+
+- `simulation/` was imported from
+  [majinchao2002/load-balance](https://github.com/majinchao2002/load-balance),
+  branch `ai-workload-fixes`, at commit `cbc6dd4`.
+- `plot/` was imported from
+  [majinchao2002/monorepo](https://github.com/majinchao2002/monorepo), branch
+  `plb`, at commit `86e6371`.
+- Nested component Git metadata was removed so this artifact can be used as one
+  repository.

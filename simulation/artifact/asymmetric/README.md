@@ -1,6 +1,7 @@
 # Asymmetric Experiments
 
-Run commands from `simulation/`:
+Run commands from `simulation/`. Use Docker for `run` and `parse`, then use the
+host with Bazel installed for `plot`:
 
 ```bash
 ./artifact/run_artifact.sh --section asymmetric --stage run --run-id trial1

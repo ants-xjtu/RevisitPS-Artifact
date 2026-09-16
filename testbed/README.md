@@ -1,15 +1,27 @@
 # Testbed Artifact
 
-This directory contains Tofino and RDMA testbed automation for the artifact. It includes P4 data-plane programs, control-plane scripts, RDMA traffic scripts, experiment configurations, and testbed plotting helpers.
+This directory contains the Tofino and RDMA testbed automation used by the
+artifact: P4 programs, switch control-plane scripts, RDMA traffic scripts,
+experiment configurations, and analysis helpers.
 
-## Prepare
+Testbed execution is hardware- and site-specific. The checked-in YAML files
+contain deployment assumptions such as host names, interfaces, switch ports,
+remote paths, and SDE commands. Review and adapt them to the target deployment
+before running any command that controls hardware or starts traffic.
 
-- Ensure every server and switch can be accessed via SSH using key-based authentication.
-- Ensure every server has passwordless sudo privileges.
-- Ensure the Tofino switch has the required SDE environment commands, such as `sde-env-9.9.1`.
-- Run testbed commands from `testbed/` unless a command explicitly says otherwise.
+## Requirements
+
+- SSH key access to every configured server and switch.
+- Passwordless `sudo` on the configured servers.
+- A compatible Tofino switch and SDE environment.
+- RDMA interfaces and tools matching the selected YAML configuration.
+- Python 3 on the orchestration host.
+
+Run commands from `testbed/` unless stated otherwise.
 
 ## Python Environment
+
+From the repository root:
 
 ```bash
 cd testbed
@@ -19,40 +31,57 @@ python3 -m pip install -r requirements.txt
 make env
 ```
 
-`make env` writes `.env` with the correct artifact-local `PYTHONPATH` for `testbed/utils`.
+`make env` writes `.env` with the artifact-local `PYTHONPATH` required by
+`testbed/utils`.
 
-## Usage
+## Configuration
 
-Set `TEST_CONF_PATH` to one of the YAML files under `conf/test/`, then run a make target:
+Choose a YAML file under `conf/test/` and export it before using a Make target:
 
 ```bash
-cd testbed
-source testbed-venv/bin/activate
-make env
 export TEST_CONF_PATH=conf/test/ecmp-8-client-8-server-WebSearch-lossless-80%.yaml
-make sw_build
 ```
 
-Common targets:
+Review the referenced host, switch, topology, connection, and trace files
+before execution. The local `root_path: .` is anchored to `testbed/`. Remote
+Tofino configurations commonly use `cwd: testbed`, which is the component's
+working directory after it is synchronized to the switch.
 
-- `make sw`: build, run, and configure the Tofino switch program.
-- `make sw_build`: compile the P4 program.
-- `make sw_run`: run `bf_switchd` on the Tofino switch.
-- `make sw_config`: run the control-plane configuration script.
-- `make check_one_link` / `make check_all_links`: run RDMA link checks.
-- `make sequential_start` / `make concurrent_start`: run RDMA tests.
-- `make gen_trace_from_host` / `make gen_trace_from_connection`: generate traffic traces.
-- `make sync_trace`: sync generated traces.
-- `make plot_throughput` / `make analysis_fct`: analyze testbed results.
+## Switch and Traffic Commands
 
-## Structure
+These targets access testbed hardware:
 
-- `conf/`: host, switch, topology, connection, trace, and experiment YAML files.
-- `scripts/`: launch scripts, remote RDMA helpers, remote Tofino helpers, trace generation, and plotting utilities.
+```bash
+make sw_build
+make sw_run
+make sw_config
+make check_one_link
+make check_all_links
+make sequential_start
+make concurrent_start
+```
+
+`make sw` combines switch build, run, and configuration. The exact remote
+effects are determined by `TEST_CONF_PATH` and its referenced YAML files.
+
+## Trace and Analysis Commands
+
+```bash
+make gen_trace_from_host
+make gen_trace_from_connection
+make sync_trace
+make plot_throughput
+make analysis_fct
+```
+
+Trace generation and analysis operate on the paths selected by the deployment
+configuration. `sync_trace` performs remote synchronization and therefore also
+requires configured SSH access.
+
+## Directory Layout
+
+- `conf/`: host, switch, topology, connection, trace, and experiment YAML.
+- `scripts/`: launchers, RDMA and Tofino helpers, trace generation, and plots.
 - `src/`: P4 data-plane programs and control-plane code.
-- `utils/`: common libraries for config parsing, BFRT helpers, repository path handling, and remote execution.
-- `Makefile`: common command-line entry points.
-
-## Path Notes
-
-The launcher anchors local paths to the `testbed/` directory through `utils/common/repo_helper.py`. The YAML field `root_path: .` therefore means `testbed/`, not the artifact root. Remote Tofino configs commonly use `cwd: testbed`, which is the remote working directory after syncing this component to the switch.
+- `utils/`: configuration, BFRT, path, and remote-execution helpers.
+- `Makefile`: command-line entry points.

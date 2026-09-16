@@ -1,6 +1,6 @@
 # Lossless Collective-Communication Workloads
 
-Run simulations inside Docker from `simulation/`:
+Run commands from `simulation/`. Inside Docker, start the workload:
 
 ```bash
 ./artifact/run_artifact.sh \
@@ -10,23 +10,44 @@ Run simulations inside Docker from `simulation/`:
   --run-id trial1
 ```
 
-Monitor or resume the run:
+Inspect status or continue an interrupted run:
 
 ```bash
-./artifact/run_artifact.sh --section lossless --workload collective-communication-workloads --stage status --run-id trial1
-./artifact/run_artifact.sh --section lossless --workload collective-communication-workloads --stage run --run-id trial1 --resume
+./artifact/run_artifact.sh \
+  --section lossless \
+  --workload collective-communication-workloads \
+  --stage status \
+  --run-id trial1
+
+./artifact/run_artifact.sh \
+  --section lossless \
+  --workload collective-communication-workloads \
+  --stage run \
+  --run-id trial1 \
+  --resume
 ```
 
-Parse and plot completed results from Docker or the host:
+After the run completes, parse it inside Docker:
 
 ```bash
-./artifact/lossless/collective-communication-workloads/parse_results.sh --run-id trial1
-./artifact/lossless/collective-communication-workloads/plot_results.sh --run-id trial1
+./artifact/run_artifact.sh \
+  --section lossless \
+  --workload collective-communication-workloads \
+  --stage parse \
+  --run-id trial1
 ```
 
-The lossless datacenter run with the same run ID must be available before
-parsing this workload. Use `--spine-id ID` with the plot command only when a
-different Figure 10 spine is needed.
+The lossless datacenter results with the same run ID must be available when
+parsing Figure 8. Then render the figures on the host with Bazel installed:
 
-Results are stored under
+```bash
+./artifact/run_artifact.sh \
+  --section lossless \
+  --workload collective-communication-workloads \
+  --stage plot \
+  --run-id trial1
+```
+
+Add `--spine-id ID` to the plot command only when selecting a different Figure
+10 spine. Results are stored under
 `artifact/results/lossless/collective-communication-workloads/runs/trial1/`.

@@ -1,6 +1,6 @@
 # Asymmetric Collective-Communication Workloads
 
-Run simulations inside Docker from `simulation/`:
+Run commands from `simulation/`. Inside Docker, start the workload:
 
 ```bash
 ./artifact/run_artifact.sh \
@@ -10,18 +10,41 @@ Run simulations inside Docker from `simulation/`:
   --run-id trial1
 ```
 
-Monitor or resume the run:
+Inspect status or continue an interrupted run:
 
 ```bash
-./artifact/run_artifact.sh --section asymmetric --workload collective-communication-workloads --stage status --run-id trial1
-./artifact/run_artifact.sh --section asymmetric --workload collective-communication-workloads --stage run --run-id trial1 --resume
+./artifact/run_artifact.sh \
+  --section asymmetric \
+  --workload collective-communication-workloads \
+  --stage status \
+  --run-id trial1
+
+./artifact/run_artifact.sh \
+  --section asymmetric \
+  --workload collective-communication-workloads \
+  --stage run \
+  --run-id trial1 \
+  --resume
 ```
 
-Parse and plot completed results from Docker or the host:
+After the run completes, parse it inside Docker:
 
 ```bash
-./artifact/asymmetric/collective-communication-workloads/parse_results.sh --run-id trial1
-./artifact/asymmetric/collective-communication-workloads/plot_results.sh --run-id trial1
+./artifact/run_artifact.sh \
+  --section asymmetric \
+  --workload collective-communication-workloads \
+  --stage parse \
+  --run-id trial1
+```
+
+Then render the figure on the host with Bazel installed:
+
+```bash
+./artifact/run_artifact.sh \
+  --section asymmetric \
+  --workload collective-communication-workloads \
+  --stage plot \
+  --run-id trial1
 ```
 
 Results are stored under
