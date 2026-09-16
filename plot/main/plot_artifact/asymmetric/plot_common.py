@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Iterator
 
 
-def monorepo_root() -> Path:
+def workspace_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
@@ -25,7 +25,7 @@ def run_bazel(target: str, args: list[object], *, dry_run: bool = False) -> None
     if dry_run:
         print("PLOT_COMMAND", " ".join(cmd))
         return
-    subprocess.run(cmd, cwd=monorepo_root(), check=True)
+    subprocess.run(cmd, cwd=workspace_root(), check=True)
 
 
 def copy_file(src: Path, dst: Path, *, dry_run: bool = False) -> None:

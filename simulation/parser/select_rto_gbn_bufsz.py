@@ -1,8 +1,7 @@
 #!/usr/bin/python3
 """
-Regroup per-bufsz JSONs into the format expected by
-main/plot_sample/plot_dcn_fct_lb_recovery_grouped.py, one file per
-(topo_family, flow_control, LB mode, loss_recovery).
+Regroup per-bufsz JSONs by topology family, flow control, load balancing mode,
+and loss recovery mechanism.
 
 Inputs   : parser/json-data-fct-per-bufsz/*.json
 Filters  :

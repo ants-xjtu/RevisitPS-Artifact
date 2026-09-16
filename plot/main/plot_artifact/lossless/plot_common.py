@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Shared helpers for lossless artifact plot wrappers.
-
-The wrappers live in a new monorepo directory and keep plot_sample unchanged.
-They call the existing Bazel plotting targets, then copy/rename outputs into
-artifact-local figure names.
-"""
+"""Shared helpers for lossless artifact plot wrappers."""
 
 from __future__ import annotations
 
@@ -17,7 +12,7 @@ from pathlib import Path
 from typing import Iterator
 
 
-def monorepo_root() -> Path:
+def workspace_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
@@ -32,7 +27,7 @@ def run_bazel(target: str, args: list[object], *, dry_run: bool = False) -> None
     if dry_run:
         print("PLOT_COMMAND", " ".join(cmd))
         return
-    subprocess.run(cmd, cwd=monorepo_root(), check=True)
+    subprocess.run(cmd, cwd=workspace_root(), check=True)
 
 
 def copy_file(src: Path, dst: Path, *, dry_run: bool = False) -> None:

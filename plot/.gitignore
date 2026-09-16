@@ -85,14 +85,6 @@ tags
 ### Other files
 .ccls-cache
 
-### Added by Hedron's Bazel Compile Commands Extractor: https://github.com/hedronvision/bazel-compile-commands-extractor
-# The external link: Differs on Windows vs macOS/Linux, so we can't check it in. The pattern needs to not have a trailing / because it's a symlink on macOS/Linux.
-/external
-# Compiled output -> don't check in
-/compile_commands.json
-# Directory where clangd puts its indexing work
-/.cache/
-
 ##### Paper artifact local outputs
 # Keep plotting source code tracked, but ignore generated data/figures under plot_sample.
 /main/plot_sample/**/__pycache__/

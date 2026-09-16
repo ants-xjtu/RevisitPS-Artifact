@@ -1,8 +1,8 @@
 # Plot Workspace
 
-This Bazel workspace contains plotting utilities used by the ns-3 paper
-artifact. The artifact-specific wrappers live in `main/plot_artifact/` and call
-existing plotting targets in `main/plot_sample/`.
+This focused Bazel workspace contains only the plotting code used by the paper
+artifact. Artifact-specific wrappers live in `main/plot_artifact/` and call the
+lower-level targets in `main/plot_sample/`.
 
 The packaged artifact layout is:
 
@@ -47,9 +47,7 @@ From `plot/`:
 
 ```bash
 bazel build //main/plot_artifact/...
-bazel build //main/plot_sample:plot_dcn_rto_fct
-bazel build //main/plot_sample:plot_sim_ai_jct_avg
-bazel build //main/plot_sample:plot_sim_ai_jct_avg_asy
+bazel build //main/plot_sample:all
 ```
 
 Use `bazel clean` only when you intentionally want to discard Bazel build
@@ -89,7 +87,20 @@ bazel run //main/plot_sample:plot_dcn_rto_fct -- \
   ../simulation/artifact/results/lossy/datacenter-workloads/runs/latest/json/fig11_lossy_dcn_p99_fct_leafspine
 ```
 
-## Relevant Targets
+## Plot Targets
+
+- `//main/plot_sample:plot_dcn_fct`
+- `//main/plot_sample:plot_dcn_ooo`
+- `//main/plot_sample:plot_dcn_pfc_incast`
+- `//main/plot_sample:plot_dcn_pfc_trigger`
+- `//main/plot_sample:plot_dcn_rto_fct`
+- `//main/plot_sample:plot_dcn_rto_fct_trim_vs_rto`
+- `//main/plot_sample:plot_dcn_unnecessary_retrans`
+- `//main/plot_sample:plot_sim_ai_jct_avg`
+- `//main/plot_sample:plot_sim_ai_jct_avg_asy`
+- `//main/plot_sample:plot_single_spine_qlen`
+
+Artifact wrappers include:
 
 - `//main/plot_artifact/lossless:plot_fig04_lossless_dcn_p99_fct`
 - `//main/plot_artifact/lossless:plot_fig07_lossless_ai_collective_cct`
