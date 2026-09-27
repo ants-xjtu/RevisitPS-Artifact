@@ -1,0 +1,21 @@
+{
+  "hosts": ["dc20", "dc21", "dc22", "dc23"],
+  "gid_index": 3,
+  "bind_to": "core",
+  "groups": [
+    {
+      "name": "nic02",
+      "np": 8,
+      "devices": ["mlx5_0", "mlx5_2", "mlx5_0", "mlx5_2", "mlx5_0", "mlx5_2", "mlx5_0", "mlx5_2"],
+      "rankfile": "configs/rankfiles/ring8_a.rankfile",
+      "ring_order": [0, 2, 4, 6, 1, 3, 5, 7]
+    },
+    {
+      "name": "nic13",
+      "np": 8,
+      "devices": ["mlx5_1", "mlx5_3", "mlx5_1", "mlx5_3", "mlx5_1", "mlx5_3", "mlx5_1", "mlx5_3"],
+      "rankfile": "configs/rankfiles/ring8_b.rankfile",
+      "ring_order": [0, 2, 4, 6, 1, 3, 5, 7]
+    }
+  ]
+}

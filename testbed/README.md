@@ -123,3 +123,9 @@ docker rm testbed-artifact-1
 The next artifact command creates the container. Results remain in the host
 `artifact/results/` directory. After replacing the SSH agent, rerun `./setup_ssh.sh`
 and source its `env.sh` before creating the container.
+
+## Collective Experiments
+
+The self-contained [collective experiments](collectives/README.md) package
+Ring Allreduce, Alltoall, and Alltoallv sources, 150 MiB presets, offline dry-run
+commands, and selected historical results. Hardware execution is a separate step.
