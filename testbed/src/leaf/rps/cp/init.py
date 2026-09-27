@@ -264,7 +264,7 @@ def run_random_client(program, args):
   random_client.init_ip_table()
   random_client.init_nexthop_controller()
   random_client.init_multicast()
-  # random_client.init_DCQCN_controller()
+  random_client.init_DCQCN_controller()
 def run_buffer_client(program, args, pipe_id):
     client = BufferConfigClient(program, args.hostname, args.switches, args.topo, args.hosts, pipe_id)
     client.setup(args.bfrt_ip, args.bfrt_port, pipe_id + 1)
@@ -325,3 +325,5 @@ if __name__ == '__main__':
   for p in processes:
       p.start()
       p.join()
+      if p.exitcode != 0:
+          raise RuntimeError(f"Control-plane child failed: {p.exitcode}")

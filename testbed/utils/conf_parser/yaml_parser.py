@@ -214,6 +214,14 @@ class SwitchConfParser(ConfParser):
             if not isinstance(value, str) or not value:
                 raise TypeError("Switch '{}': {} must be a non-empty string".format(
                     hostname, field_name))
+            # BFRT PPG/queue BAF enum labels, not DT alpha percentages.
+            # DT alpha 1/4 and 4 map to BAF 20% and 80%, respectively.
+            allowed_baf = ('DISABLE', '1.5%', '3%', '6%', '11%', '20%',
+                           '33%', '50%', '66%', '80%')
+            if value not in allowed_baf:
+                raise ValueError("Switch '{}': {}={!r} is not a supported BFRT dynamic_baf; "
+                                 "choose {} (BAF = alpha / (1 + alpha), not alpha)".format(
+                                     hostname, field_name, value, ', '.join(allowed_baf)))
 
         return config
 
@@ -451,8 +459,5 @@ class HostConfParser(ConfParser):
     
     def add_host_info(self, host: str, info: dict):
         self.hosts[host].update(info)
-        try:
-            with open(self.conf_path, 'w') as f:
-                yaml.safe_dump({'hosts': self.hosts}, f)
-        except FileNotFoundError:
-            print("host config file is not exist: {}".format(self.conf_path))
+        # Device discovery must never rewrite a source host configuration.
+        # The artifact runner saves the updated map in its runtime snapshot.

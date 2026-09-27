@@ -8,9 +8,10 @@ config:
   hosts: conf/host/8-client-8-server.yaml
   switches: conf/switches/rps_lossless.yaml
   topo: conf/topo/8-client-8-server-2-leaf-8-spine.yaml
-  connections: conf/connections/7_to_1_incast_with_3_innocent_flow.yaml
+  connections: conf/connections/7_to_1_incast_with_1_background_flow.yaml
 applications:
   gen_trace:
+    seed: 42
     cdf: conf/trace/WebSearch.txt
     load: 0.8
     bandwidth: 90G

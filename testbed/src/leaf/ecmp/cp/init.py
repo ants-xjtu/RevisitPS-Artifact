@@ -264,7 +264,7 @@ def run_ecmp_client(program, args):
   ecmp_client.init_ip_table()
   ecmp_client.init_nexthop_controller()
   ecmp_client.init_multicast()
-  # ecmp_client.init_DCQCN_controller()
+  ecmp_client.init_DCQCN_controller()
  
 def run_buffer_client(program, args, pipe_id):
     client = BufferConfigClient(program, args.hostname, args.switches, args.topo, args.hosts, pipe_id)
@@ -326,3 +326,5 @@ if __name__ == '__main__':
   for p in processes:
       p.start()
       p.join()
+      if p.exitcode != 0:
+          raise RuntimeError(f"Control-plane child failed: {p.exitcode}")

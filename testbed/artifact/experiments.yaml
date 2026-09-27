@@ -1,0 +1,100 @@
+# Two paper experiments; algorithms are variants, not separate experiments.
+experiments:
+- id: lossless
+  config: conf/test/figure2-lossless.yaml
+  group: lossless
+  traffic: trace
+  trace_mode: host
+  metric: fct
+  variants:
+  - id: bigswitch
+    algorithm: BigSwitch
+    config_overrides:
+      config:
+        switches: conf/switches/bigswitch_lossless.yaml
+        topo: conf/topo/8-client-8-server-bigswitch.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 0
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 0
+  - id: ecmp
+    algorithm: ECMP
+    config_overrides:
+      config:
+        switches: conf/switches/ecmp_lossless.yaml
+        topo: conf/topo/8-client-8-server-2-leaf-8-spine.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 0
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 0
+  - id: rps
+    algorithm: RPS
+    config_overrides:
+      config:
+        switches: conf/switches/rps_lossless.yaml
+        topo: conf/topo/8-client-8-server-2-leaf-8-spine.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 0
+- id: lossy
+  config: conf/test/figure2-lossy.yaml
+  group: lossy
+  traffic: trace
+  trace_mode: host
+  metric: fct
+  variants:
+  - id: bigswitch
+    algorithm: BigSwitch
+    config_overrides:
+      config:
+        switches: conf/switches/bigswitch_lossy.yaml
+        topo: conf/topo/8-client-8-server-bigswitch.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 0
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 1
+  - id: ecmp
+    algorithm: ECMP
+    config_overrides:
+      config:
+        switches: conf/switches/ecmp_lossy.yaml
+        topo: conf/topo/8-client-8-server-2-leaf-8-spine.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 0
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 1
+  - id: rps
+    algorithm: RPS
+    config_overrides:
+      config:
+        switches: conf/switches/rps_lossy.yaml
+        topo: conf/topo/8-client-8-server-2-leaf-8-spine.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 0

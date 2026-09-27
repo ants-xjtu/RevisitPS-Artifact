@@ -11,6 +11,7 @@ config:
   connections: conf/connections/fully_connected.yaml
 applications:
   gen_trace:
+    seed: 42
     cdf: conf/trace/WebSearch.txt
     load: 0.8
     bandwidth: 90G

@@ -1,7 +1,7 @@
 .PHONY: env sw sw_build sw_run sw_config check_one_link check_all_links sequential_start concurrent_start plot_throughput gen_trace_from_host gen_trace_from_connection sync_trace analysis_fct
 SHELL := /bin/bash
 
-ARTIFACT_ROOT := $(shell git rev-parse --show-toplevel)
+ARTIFACT_ROOT := $(abspath $(CURDIR)/..)
 TESTBED_ROOT := $(CURDIR)
 PYTHONPATH := $(TESTBED_ROOT)/utils
 ENV_GEN_FILE := .env

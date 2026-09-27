@@ -1,3 +1,5 @@
+# DT alpha=4 maps to egress BAF=alpha/(1+alpha)=80%.
+# Tofino cells: 80 B; 65536 cells = 5 MiB; 5120 cells = 400 KiB.
 # Lossy profile: PFC is disabled on every switch.
 switches:
   tf_sw1:
@@ -12,13 +14,13 @@ switches:
     SEED_RANGE_MAX: 256
     MCAST_GRP_ID: 1
     RID: 1
-    ingress_buffer_cells: 91749
-    egress_buffer_cells: 91749
-    skid_max_cells: 65535
+    ingress_buffer_cells: 65536
+    egress_buffer_cells: 65536
+    skid_max_cells: 0
     guaranteed_cells: 20
     PFC_ENABLE: false
-    ingress_dynamic_baf: 6%
-    egress_dynamic_baf: 50%
+    ingress_dynamic_baf: DISABLE
+    egress_dynamic_baf: 80%
     ports:
       17/0: {speed: 100G, fec: none, an: default}
       18/0: {speed: 100G, fec: none, an: default}
@@ -48,13 +50,13 @@ switches:
     SEED_RANGE_MAX: 256
     MCAST_GRP_ID: 1
     RID: 1
-    ingress_buffer_cells: 91749
-    egress_buffer_cells: 91749
-    skid_max_cells: 65535
+    ingress_buffer_cells: 65536
+    egress_buffer_cells: 65536
+    skid_max_cells: 0
     guaranteed_cells: 20
     PFC_ENABLE: false
-    ingress_dynamic_baf: 6%
-    egress_dynamic_baf: 50%
+    ingress_dynamic_baf: DISABLE
+    egress_dynamic_baf: 80%
     ports:
       1/0: {speed: 100G, fec: none, an: default}
       2/0: {speed: 100G, fec: none, an: default}

@@ -1,87 +1,125 @@
 # Testbed Artifact
 
-This directory contains the Tofino and RDMA testbed automation used by the
-artifact: P4 programs, switch control-plane scripts, RDMA traffic scripts,
-experiment configurations, and analysis helpers.
-
-Testbed execution is hardware- and site-specific. The checked-in YAML files
-contain deployment assumptions such as host names, interfaces, switch ports,
-remote paths, and SDE commands. Review and adapt them to the target deployment
-before running any command that controls hardware or starts traffic.
+Run the Figure 2 hardware experiments with BigSwitch, ECMP, and RPS in lossless
+and lossy modes. The Docker container handles orchestration, parsing, and plotting.
 
 ## Requirements
 
-- SSH key access to every configured server and switch.
-- Passwordless `sudo` on the configured servers.
-- A compatible Tofino switch and SDE environment.
-- RDMA interfaces and tools matching the selected YAML configuration.
-- Python 3 on the orchestration host.
+- Docker with the Compose plugin, Git, Python 3, and an SSH agent on the control host.
+- SSH access to the RDMA hosts and Tofino switches, with verified host keys and
+  non-interactive sudo permissions for deployment.
+- Working RDMA hardware/tools and a compatible Tofino SDE, driver, and Nix setup
+  on the target devices.
+- Enough free space on the control host and RDMA hosts for traces and raw logs.
 
-Run commands from `testbed/` unless stated otherwise.
-
-## Python Environment
+## Configure
 
 From the repository root:
 
 ```bash
+git submodule update --init -- testbed/third_party/perftest
 cd testbed
-python3 -m venv testbed-venv
-source testbed-venv/bin/activate
-python3 -m pip install -r requirements.txt
-make env
+test -f conf/deployment.local.yaml || cp conf/deployment.yaml conf/deployment.local.yaml
 ```
 
-`make env` writes `.env` with the artifact-local `PYTHONPATH` required by
-`testbed/utils`.
+Edit `conf/deployment.local.yaml` for your SSH users, RDMA stack, remote paths,
+and Tofino SDE command. Check the host, switch, and topology files under `conf/`
+against your physical testbed. The experiment matrix is in `artifact/experiments.yaml`.
 
-## Configuration
-
-Choose a YAML file under `conf/test/` and export it before using a Make target:
+Load a key already authorized on the devices and generate the container SSH settings:
 
 ```bash
-export TEST_CONF_PATH=conf/test/ecmp-8-client-8-server-WebSearch-lossless-80%.yaml
+eval "$(ssh-agent -s)"
+ssh-add /path/to/authorized_private_key
+./setup_ssh.sh
+source "$HOME/.config/revisitps-artifact/env.sh"
 ```
 
-Review the referenced host, switch, topology, connection, and trace files
-before execution. The local `root_path: .` is anchored to `testbed/`. Remote
-Tofino configurations commonly use `cwd: testbed`, which is the component's
-working directory after it is synchronized to the switch.
+The setup script reads `~/.ssh/config` and `~/.ssh/known_hosts`. Use `--ssh-config`
+and `--known-hosts` to select other files. Copy the printed `SHA256:...` identity
+fingerprint into `ssh.expected_fingerprints` in `conf/deployment.local.yaml`.
+Run all remaining commands from `testbed/`.
 
-## Switch and Traffic Commands
-
-These targets access testbed hardware:
+## Build and Validate
 
 ```bash
-make sw_build
-make sw_run
-make sw_config
-make check_one_link
-make check_all_links
-make sequential_start
-make concurrent_start
+./docker_artifact.sh build
+./docker_artifact.sh --run-id trial1 --experiment all --dry-run
+./docker_artifact.sh --run-id trial1 --experiment all --stage prepare
+./docker_artifact.sh --run-id trial1 --experiment all --stage check
 ```
 
-`make sw` combines switch build, run, and configuration. The exact remote
-effects are determined by `TEST_CONF_PATH` and its referenced YAML files.
+`prepare` installs missing supported dependencies and loads required modules.
+`check` deploys the switches, configures NICs, and runs bidirectional throughput
+and short-trace checks. Both stages access the hardware; run them when the
+selected testbed is available. Resolve reported failures before starting a run.
 
-## Trace and Analysis Commands
+## Run
+
+Run all six experiment/algorithm combinations, then parse and plot:
 
 ```bash
-make gen_trace_from_host
-make gen_trace_from_connection
-make sync_trace
-make plot_throughput
-make analysis_fct
+./docker_artifact.sh --run-id trial1 --experiment all --repeat 1 --stage all
 ```
 
-Trace generation and analysis operate on the paths selected by the deployment
-configuration. `sync_trace` performs remote synchronization and therefore also
-requires configured SSH access.
+Use `--experiment lossless` or `--experiment lossy` for one mode, and `--repeat N`
+for repeated measurements. Use a new run ID for each independent run. Only one
+process should control the testbed at a time.
 
-## Directory Layout
+To run the stages separately:
 
-- `conf/`: host, switch, topology, connection, trace, and experiment YAML.
-- `scripts/`: launchers, RDMA and Tofino helpers, trace generation, and plots.
-- `src/`: P4 data-plane programs and control-plane code.
-- `utils/`: configuration, BFRT, path, and remote-execution helpers.
-- `Makefile`: command-line entry points.
+```bash
+./docker_artifact.sh --run-id trial1 --experiment all --stage run
+./docker_artifact.sh --run-id trial1 --stage parse
+./docker_artifact.sh --run-id trial1 --stage plot
+```
+
+## Monitor and Resume
+
+From another terminal with the same SSH settings loaded:
+
+```bash
+./docker_artifact.sh --run-id trial1 --stage status
+./docker_artifact.sh monitor --run-id trial1 --switch tf_sw2
+```
+
+Detach from the switch console with `Ctrl-b d`.
+
+Resume an interrupted run with the original experiment selection and repeat count:
+
+```bash
+./docker_artifact.sh --run-id trial1 --experiment all --repeat 1 --stage all --resume
+```
+
+Resume requires unchanged input configuration and implementation. Completed
+measurements are verified before reuse. Add `--refresh-environment` when remote
+dependencies or device state have changed and cached readiness checks must be rerun.
+
+## Results
+
+Outputs are stored in `artifact/results/<run-id>/`:
+
+- `status.json` and `manifest.csv`: task completion and failure details.
+- `environment.json` and `checks/`: environment reports and check logs.
+- `tasks/*/attempt-*/`: per-attempt configuration, commands, and raw measurements.
+- `parsed/`: parsed FCT and Figure 2 bucket data.
+- `figures/`: Figure 2a, Figure 2b, and the combined Figure 2 in PDF, SVG, and PNG.
+
+Each plotted mode requires complete BigSwitch, ECMP, and RPS measurements.
+The combined figure requires both modes.
+
+## Refresh the Container
+
+The launcher reuses the running container. After changing code, the image, or SSH
+mounts, recreate it between experiments, after its experiment and switchd sessions
+have ended. For the default container name:
+
+```bash
+docker stop testbed-artifact-1
+docker rm testbed-artifact-1
+./docker_artifact.sh build
+```
+
+The next artifact command creates the container. Results remain in the host
+`artifact/results/` directory. After replacing the SSH agent, rerun `./setup_ssh.sh`
+and source its `env.sh` before creating the container.

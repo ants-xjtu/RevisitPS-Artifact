@@ -254,3 +254,5 @@ if __name__ == '__main__':
   for p in processes:
       p.start()
       p.join()
+      if p.exitcode != 0:
+          raise RuntimeError(f"Control-plane child failed: {p.exitcode}")

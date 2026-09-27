@@ -11,6 +11,7 @@ config:
   connections: conf/connections/15_to_1_incast.yaml
 applications:
   gen_trace:
+    seed: 42
     cdf: conf/trace/WebSearch.txt
     load: 0.5
     bandwidth: 100G

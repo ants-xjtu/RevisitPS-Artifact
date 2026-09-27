@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.pyc
+*venv*/
+logs/
+data/
+trace/
+artifact/results/
+artifact/locks/
+conf/deployment.local.yaml
+*.discovered.json

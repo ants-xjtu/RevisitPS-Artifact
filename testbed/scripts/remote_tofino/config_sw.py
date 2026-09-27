@@ -1,121 +1,73 @@
-#!/usr/bin/python3
-import os
-import sys
-import yaml
+"""Deploy all switches before configuring/validating inter-switch physical links."""
+import shlex
 import click
-
-from conf_parser.yaml_parser import SwitchConfParser, TestConfParser
-from conf_parser.ini_parser import GenericConfParser
+from conf_parser.yaml_parser import SwitchConfParser
 from common.remote_tofino_helper import RemoteTofinoHelper
-from common.repo_helper import get_remote_user, resolve_repo_path
-
-@click.group()
-def cli():
-    """Switch configuration tool with build/run/config commands"""
-    pass
+from common.remote_rdma_helper import logged_run, SSH_OPTIONS
+from common.repo_helper import resolve_repo_path
+from common.progress import progress, stage
 
 
-def run_switch_config(test_conf_parser: TestConfParser, do_build=False, do_run=False, do_config=False):
-    test_conf = test_conf_parser.get()
-    grpc_listen_port = test_conf.applications.remote_tofino.grpc_listen_port
-    remote_user = get_remote_user(
-        test_conf.get("applications.remote_tofino.user")
-    )
-    root_path = resolve_repo_path(test_conf.get("root_path", "."))
-    # ---------- Experiment Config Paths ----------
-    switch_conf_path = test_conf.config.switches
-    topo_conf_path = test_conf.config.topo
-    host_conf_path = test_conf.config.hosts
+def run_switch_config(test_conf_parser, do_build=False, do_run=False, do_config=False, built=None):
+    conf = test_conf_parser.get()
+    settings = conf.applications.remote_tofino
+    switches = SwitchConfParser(conf.config.switches)
+    switches.load_conf_file()
+    deployments = []
+    for name, switch in switches.switches.items():
+        with stage(f'Switch source synchronization: {name}'):
+            helper = RemoteTofinoHelper(switch.get('user', settings.get('user')),
+                                        switch.get('management', name), settings.cwd,
+                                        switch['arch'], switch_id=name)
+            helper.sync_repo(str(resolve_repo_path(conf.root_path)), settings.sync_ingore_dirs)
+        program = switch['program']
+        build_key = (helper.remote.target, program['path'], settings.cmd.build)
+        if do_build and (built is None or build_key not in built):
+            with stage(f'P4 build: {name} / {program["name"]}'):
+                helper.remote_build(settings.cmd.build, program['path'])
+            if built is not None:
+                built.add(build_key)
+        elif do_build:
+            progress(f'SKIP P4 build: {name} / {program["name"]} (already built in this run)')
+        remote_configs = {}
+        config_dir = helper.remote_cwd + '/conf/runtime/' + helper.run_id
+        with stage(f'Switch configuration upload: {name}'):
+            helper.remote.ssh('mkdir -p ' + shlex.quote(config_dir))
+            for key in ('topo', 'switches', 'hosts'):
+                destination = config_dir + '/' + key + '.yaml'
+                logged_run(['scp', *SSH_OPTIONS, conf.config.get(key), helper.remote.target + ':' + destination], 60)
+                remote_configs[key] = destination
+        deployments.append((helper, program, remote_configs))
+    if do_run:
+        for helper, program, _ in deployments:
+            with stage(f'Switch deployment: {helper.switch_id} / {program["name"]}'):
+                helper.remote_deploy(settings.cmd.deploy, program['name'])
+    if do_config:
+        for helper, program, paths in deployments:
+            with stage(f'Switch BFRT configuration: {helper.switch_id}'):
+                helper.remote_config(settings.cmd.config, program['cp_script_path'], settings.grpc_listen_port, **paths)
+        for helper, _, paths in deployments:
+            verify = settings.cmd.config.replace('{{cp_script_path}}', 'scripts/remote_tofino/verify.py')
+            verify = verify.replace(' --topo {{topo}}', '').replace(' --hosts {{hosts}}', '')
+            with stage(f'Switch readback verification: {helper.switch_id}'):
+                helper.remote_config(verify, 'scripts/remote_tofino/verify.py', settings.grpc_listen_port, **paths)
 
-    build_cmd = test_conf.applications.remote_tofino.cmd.build
-    deploy_cmd = test_conf.applications.remote_tofino.cmd.deploy
-    config_cmd = test_conf.applications.remote_tofino.cmd.config
-    try:
-        # ---------- Load Switch Config ----------
-        switch_conf_parser = SwitchConfParser(switch_conf_path)
-        switch_conf_parser.load_conf_file()
 
-        ignored_files = test_conf.applications.remote_tofino.sync_ingore_dirs
-
-
-        # ---------- Pre-resolve constant target_path ----------
-        # target_path depends only on remote_user + repo name → compute once.
-        remote_cwd = test_conf.applications.remote_tofino.cwd
-        
-        # ---------- Iterate through switches ----------
-        for switch_hostname, cfg in switch_conf_parser.switches.items():
-            arch = cfg["arch"]
-            program = cfg["program"]
-            program_name = program['name']
-            program_path = program['path']
-            cp_script_path = program['cp_script_path']
-            
-            helper = RemoteTofinoHelper(
-                remote_user=remote_user,
-                switch_hostname=switch_hostname,
-                remote_cwd=remote_cwd,
-                arch=arch,
-            )
-
-            # ---- Sync repo (one-time logic) ----
-            helper.sync_repo(
-                repo_path=str(root_path),
-                exclude_paths=ignored_files,
-            )
-
-            # ---- Build ----
-            if do_build:
-                click.echo(f"[{switch_hostname}] Building program {program}")
-                helper.remote_build(
-                    build_cmd=build_cmd,
-                    p4program_path=program_path,
-                )
-
-            # ---- Run ----
-            if do_run:
-                click.echo(f"[{switch_hostname}] Running bf_switchd for {program}")
-                helper.remote_deploy(deploy_cmd=deploy_cmd, p4program_name=program_name)
-
-            # ---- Configure ----
-            if do_config:
-                click.echo(f"[{switch_hostname}] Configuring control plane")
-                helper.remote_config(
-                    config_cmd=config_cmd,
-                    cp_script_path=cp_script_path,
-                    port=grpc_listen_port,
-                    topo=topo_conf_path,
-                    switches=switch_conf_path,
-                    hosts=host_conf_path
-                )
-
-    except Exception as e:
-        click.echo(f"Error: {e}")
-        sys.exit(1)
-   
-
-@cli.command()
+@click.command()
 def sw(test_conf_parser):
-    """Do build, run, and config (all in one)"""
     run_switch_config(test_conf_parser, do_build=True, do_run=True, do_config=True)
 
 
-@cli.command()
+@click.command()
 def sw_build(test_conf_parser):
-    """Build the switch program"""
     run_switch_config(test_conf_parser, do_build=True)
 
 
-@cli.command()
+@click.command()
 def sw_run(test_conf_parser):
-    """Run bf_switchd"""
     run_switch_config(test_conf_parser, do_run=True)
 
 
-@cli.command()
+@click.command()
 def sw_config(test_conf_parser):
-    """Configure control plane"""
     run_switch_config(test_conf_parser, do_config=True)
-
-
-if __name__ == '__main__':
-    cli()

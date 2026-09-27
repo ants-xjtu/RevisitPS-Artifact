@@ -1,0 +1,42 @@
+# Set explicit SSH users and public-key fingerprints before accessing hardware.
+ssh:
+  expected_fingerprints: []
+# RDMA endpoints only: stage trace and perftest logs before collection.
+# Not a Tofino directory or disk requirement.
+remote_root: artifact
+minimum_free_kib: 10485760
+packages: [rsync, python3, iproute2, procps, util-linux, ethtool, kmod]
+rdma:
+  user: jndu
+  # 'existing' preserves OFED; 'inbox' allows the distro packages below.
+  stack: existing
+  packages: [rdma-core, ibverbs-utils, libibverbs1, ibverbs-providers]
+  pfc: auto
+  dcqcn: true
+  dcqcn_overrides: {}
+  min_speed_mbps: 100000
+  # Minimum netdev MTU accepted by the deployment check; does not set the interface MTU.
+  mtu: 1024
+perftest:
+  remote_path: ~/lib/perftest
+  build_command: ./autogen.sh && ./configure && make -j4
+  build_packages: [build-essential, autoconf, automake, libtool, pkg-config]
+  # libibverbs/librdmacm development headers must match the installed RDMA stack.
+tofino:
+  user: jndu
+  sde_command: sde-env-9.9.1 --platform=accton_wedge100bf_32x --python-modules=pyyaml,jinja2
+  install_command: null
+  # Optional existing-daemon startup command; default: systemd, SysV, then
+  # the installed daemon binary on ONL. Never installs Nix.
+  nix_daemon_start_command: null
+  device_path: /dev/bf0
+  module_path: null  # optional exact bf_kdrv.ko path; otherwise inspect SDE_INSTALL
+measurement:
+  warmup_seconds: 5
+  duration_seconds: 10
+  threshold_gbps: 90
+  interval_seconds: 1
+  bidirectional: true
+# Optional local overrides by paper experiment (lossless/lossy), then variant
+# (e.g. lossless-rps). No incast policy is applied to Figure 2.
+experiment_overrides: {}
