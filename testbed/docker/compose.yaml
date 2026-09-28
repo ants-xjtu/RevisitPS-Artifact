@@ -1,0 +1,26 @@
+name: revisitps-testbed
+services:
+  artifact:
+    image: ${ARTIFACT_IMAGE:-revisitps-testbed:local}
+    build:
+      context: ../..
+      dockerfile: ${ARTIFACT_DOCKERFILE:-testbed/docker/Dockerfile}
+      args:
+        ARTIFACT_UID: ${ARTIFACT_UID:-1000}
+        ARTIFACT_GID: ${ARTIFACT_GID:-1000}
+        PROJECT_VERSION: ${PROJECT_VERSION:-unknown}
+        PERFTEST_COMMIT: ${PERFTEST_COMMIT:?Use run.sh}
+    init: true
+    network_mode: ${ARTIFACT_NETWORK_MODE:-bridge}
+    environment:
+      SSH_AUTH_SOCK: /run/artifact-agent.sock
+      ARTIFACT_SSH_CONFIG: /run/artifact-ssh/config
+      ARTIFACT_KNOWN_HOSTS: /run/artifact-ssh/known_hosts
+    volumes:
+      - ../results:/opt/artifact/testbed/results
+      - ../build:/opt/artifact/testbed/build
+      - ../runtime:/opt/artifact/testbed/runtime
+      - ${ARTIFACT_AGENT_SOCKET:-/dev/null}:/run/artifact-agent.sock
+      - ${ARTIFACT_SSH_CONFIG_PATH:-/dev/null}:/run/artifact-ssh/config:ro
+      - ${ARTIFACT_KNOWN_HOSTS_PATH:-/dev/null}:/run/artifact-ssh/known_hosts:ro
+      - ${ARTIFACT_DEPLOYMENT_PATH:-../deployment/deployment.yaml}:/opt/artifact/testbed/deployment/deployment.runtime.yaml:ro

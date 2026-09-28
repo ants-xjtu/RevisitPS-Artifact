@@ -1,0 +1,7 @@
+target_recv_bytes: 157286400
+warmup: 20
+iters: 500
+zipf_alpha: 0.8
+ring_write_chunk: 1M
+ring_signal_interval: 1
+ring_write_notify: none

@@ -4,8 +4,11 @@ __pycache__/
 *venv*/
 logs/
 data/
-trace/
-artifact/results/
-artifact/locks/
-conf/deployment.local.yaml
+/trace/
+/build/
+/results/
+/runtime/
+/artifact/results/
+/artifact/locks/
+deployment/deployment.local.yaml
 *.discovered.json

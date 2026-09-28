@@ -1,0 +1,113 @@
+groups: experiments/ai_workload/configs/groups.yaml
+parameters: experiments/ai_workload/configs/workloads/150mib.yaml
+workloads:
+- ring_allreduce
+- alltoall
+- alltoallv
+experiments:
+- id: lossless
+  config: experiments/dcn_workload/configs/tests/lossless.yaml
+  group: lossless
+  traffic: trace
+  trace_mode: host
+  metric: fct
+  variants:
+  - id: bigswitch
+    algorithm: BigSwitch
+    config_overrides:
+      config:
+        switches: switches/configs/bigswitch_lossless.yaml
+        topo: deployment/topologies/8-client-8-server-bigswitch.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 0
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 0
+  - id: ecmp
+    algorithm: ECMP
+    config_overrides:
+      config:
+        switches: switches/configs/ecmp_lossless.yaml
+        topo: deployment/topologies/8-client-8-server-2-leaf-8-spine.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 0
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 0
+  - id: rps
+    algorithm: RPS
+    config_overrides:
+      config:
+        switches: switches/configs/rps_lossless.yaml
+        topo: deployment/topologies/8-client-8-server-2-leaf-8-spine.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 0
+  deployment_overrides:
+    rdma:
+      pfc: auto
+      dcqcn: true
+- id: lossy
+  config: experiments/dcn_workload/configs/tests/lossy.yaml
+  group: lossy
+  traffic: trace
+  trace_mode: host
+  metric: fct
+  variants:
+  - id: bigswitch
+    algorithm: BigSwitch
+    config_overrides:
+      config:
+        switches: switches/configs/bigswitch_lossy.yaml
+        topo: deployment/topologies/8-client-8-server-bigswitch.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 0
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 1
+  - id: ecmp
+    algorithm: ECMP
+    config_overrides:
+      config:
+        switches: switches/configs/ecmp_lossy.yaml
+        topo: deployment/topologies/8-client-8-server-2-leaf-8-spine.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 0
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 0
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 1
+  - id: rps
+    algorithm: RPS
+    config_overrides:
+      config:
+        switches: switches/configs/rps_lossy.yaml
+        topo: deployment/topologies/8-client-8-server-2-leaf-8-spine.yaml
+    nic_registers:
+      ROCE_ACCL:
+        adaptive_routing_forced_en: 1
+        min_ack_timeout_limit_disabled: 1
+        roce_adp_retrans_en: 1
+        roce_slow_restart_en: 1
+        roce_tx_window_en: 1
+        selective_repeat_forced_en: 0
+  deployment_overrides:
+    rdma:
+      pfc: auto
+      dcqcn: true

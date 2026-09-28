@@ -1,3 +1,3 @@
 [submodule "testbed/third_party/perftest"]
-	path = testbed/third_party/perftest
+	path = testbed/experiments/dcn_workload/sources/perftest
 	url = https://github.com/NetPerf-XJTU/perftest

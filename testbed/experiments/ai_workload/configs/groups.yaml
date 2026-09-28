@@ -1,0 +1,45 @@
+bind_to: core
+groups:
+- name: nic02
+  np: 8
+  rankfile: experiments/ai_workload/configs/rankfiles/ring8_a.rankfile
+  ring_order:
+  - 0
+  - 2
+  - 4
+  - 6
+  - 1
+  - 3
+  - 5
+  - 7
+  endpoints:
+  - 10.150.240.201
+  - 10.150.240.203
+  - 10.150.240.211
+  - 10.150.240.213
+  - 10.150.240.221
+  - 10.150.240.223
+  - 10.150.240.231
+  - 10.150.240.233
+- name: nic13
+  np: 8
+  rankfile: experiments/ai_workload/configs/rankfiles/ring8_b.rankfile
+  ring_order:
+  - 0
+  - 2
+  - 4
+  - 6
+  - 1
+  - 3
+  - 5
+  - 7
+  endpoints:
+  - 10.150.240.202
+  - 10.150.240.204
+  - 10.150.240.212
+  - 10.150.240.214
+  - 10.150.240.222
+  - 10.150.240.224
+  - 10.150.240.232
+  - 10.150.240.234
+inventory: deployment/hosts.yaml
