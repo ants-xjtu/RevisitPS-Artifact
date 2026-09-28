@@ -149,26 +149,65 @@ def preflight_launcher(spec, mpi, remotes):
     return launcher
 
 
-def prepare(spec, deployment, directory, refresh=False):
+def prepare(spec, deployment, directory, refresh=False, shared=None):
     from framework.environment import Environment
     from framework.environment_cache import prepare_environment
     from framework.runner import validate, atomic_json
     from experiments.ai_workload.scripts.build import target_environments, build, distribute
     _, _, hosts, switches, _ = validate(spec)
     environment = Environment(deployment, directory / 'environment.json')
-    report = prepare_environment(environment, hosts, switches, ROOT / 'results', refresh=refresh)
+    from framework.results import canonical_hash
+    if shared is None:
+        report = prepare_environment(environment, hosts, switches, ROOT / 'results/ai_workload', refresh=refresh)
+        runtime_cache, build_cache = {}, {}
+        common_key = None
+    else:
+        if 'batches' not in shared:
+            from framework.check_cache import readiness_batches
+            shared['batches'] = readiness_batches(shared['selected'], shared['deployment'])
+        common_key, batch = next((key, batch) for key, batch in shared['batches'].items()
+                                 if any(item['id'] == spec['id'] for item in batch['experiments']))
+        common_path = shared['run_dir'] / 'checks/common' / common_key / 'environment.json'
+        common_reports = shared.setdefault('common', {})
+        if common_key not in common_reports:
+            common = Environment(batch['deployment'], common_path)
+            common_reports[common_key] = copy.deepcopy(prepare_environment(
+                common, batch['hosts'], batch['switches'], shared['run_dir'].parent,
+                refresh=refresh))
+        report = copy.deepcopy(common_reports[common_key])
+        report.pop('readiness_cache', None)
+        report['shared_readiness'] = str(common_path)
+        environment.report = report
+        environment.save()
+        runtime_cache = shared.setdefault('runtime', {})
+        build_cache = shared.setdefault('builds', {})
     remotes = remote_helpers(spec, deployment)
-    environment.record(deployment['mpi']['launcher'], 'ai-launcher-ssh',
-                       lambda: (preflight_launcher(spec, deployment['mpi'], remotes), 'passed')[1])
-    targets = environment.record('mpi-nodes', 'ai-runtime-inventory',
-                                 lambda: target_environments(deployment['mpi'], remotes))
+    runtime_key = canonical_hash(dict(common=common_key, mpi=deployment['mpi'],
+                                     groups=spec['groups'], bind_to=spec['bind_to'],
+                                     targets={host: remote.target for host, remote in remotes.items()}))
+    if runtime_key not in runtime_cache:
+        environment.record(deployment['mpi']['launcher'], 'ai-launcher-ssh',
+                           lambda: (preflight_launcher(spec, deployment['mpi'], remotes), 'passed')[1])
+        targets = environment.record('mpi-nodes', 'ai-runtime-inventory',
+                                     lambda: target_environments(deployment['mpi'], remotes))
+        runtime_cache[runtime_key] = dict(targets=targets, source=str(environment.path))
+    else:
+        cached = runtime_cache[runtime_key]
+        targets = cached['targets']
+        environment.record('mpi-nodes', 'ai-runtime-reuse', lambda: dict(source=cached['source']))
     holder = {}
     def compile_and_distribute():
         cache, artifact = build(spec['workload'], deployment['mpi'], targets)
         holder['destination'] = distribute(cache, artifact, deployment['mpi'], remotes)
         holder['built'] = artifact
         return {'build_key': artifact['key'], 'binary_checksums': artifact['files']}
-    environment.record('mpi-nodes', 'ai-build-and-loader-probe', compile_and_distribute)
+    build_key = (runtime_key, spec['workload'])
+    if build_key not in build_cache:
+        environment.record('mpi-nodes', 'ai-build-and-loader-probe', compile_and_distribute)
+        build_cache[build_key] = dict(holder, source=str(environment.path))
+    else:
+        holder = build_cache[build_key]
+        environment.record('mpi-nodes', 'ai-build-reuse', lambda: dict(source=holder['source']))
     destination, built = holder['destination'], holder['built']
     report['ai'] = dict(build=built, targets=targets, launcher=deployment['mpi']['launcher'],
                         status='prepared', note='RDMA and CPU binding acceptance requires the check/run smoke test')
@@ -274,7 +313,20 @@ def execute(spec, mpi, attempt, remotes, binary_dir, remote_dir, gid, timeout):
             for p in folder.rglob('*') if p.is_file()}
 
 
-def run_task(spec, deployment, task, run_dir, state, built, stage='run', refresh=False):
+def smoke_identity(spec, deployment, report, gid):
+    from framework.check_cache import traffic_identity
+    from framework.results import digest
+    base = traffic_identity(spec, deployment)
+    sources = {str(p.relative_to(ROOT)): digest(p)
+               for p in (ROOT / 'experiments/ai_workload').rglob('*')
+               if p.is_file() and p.suffix in ('.py', '.cpp', '.h', '.hpp')}
+    return dict(policy='ai-workload-algorithm-smoke-v1', network=base,
+                workload=spec['workload'], groups=spec['groups'], bind_to=spec['bind_to'],
+                parameters=spec['parameters'], mpi=deployment['mpi'], gid=gid,
+                build=report['ai']['build'], targets=report['ai']['targets'], sources=sources)
+
+
+def run_task(spec, deployment, task, run_dir, state, built, stage='run', refresh=False, shared=None):
     import os
     from framework.runner import atomic_json, persist
     directory = run_dir / ('checks' if stage == 'check' else 'tasks') / task['task_id']
@@ -286,14 +338,28 @@ def run_task(spec, deployment, task, run_dir, state, built, stage='run', refresh
     os.environ.update(ARTIFACT_COMMAND_LOG=str(attempt / 'commands.log'),
                       ARTIFACT_PROCESS_JOURNAL=str(attempt / 'processes.jsonl'),
                       ARTIFACT_SWITCH_LOG=str(run_dir / 'checks/switches'))
-    report, remotes, binary_dir = prepare(spec, deployment, attempt, refresh)
+    report, remotes, binary_dir = prepare(spec, deployment, attempt, refresh, shared)
     gid = configure_hardware(spec, deployment, attempt, report, built, run_dir.name)
     remote_dir = deployment['mpi']['remote_root'].rstrip('/') + '/' + run_dir.name + '/' + task['task_id'] + '/' + attempt.name
     short = copy.deepcopy(spec)
     short['parameters'].update(warmup=1, iters=deployment['mpi']['smoke_iters'],
                                target_recv_bytes=deployment['mpi']['smoke_bytes'])
-    execute(short, deployment['mpi'], attempt / 'smoke', remotes, binary_dir, remote_dir + '/smoke', gid, 120)
-    report['ai'].update(status='passed', gid_index=gid, cpu_binding='passed', rdma_smoke='passed')
+    from framework.environment import Environment
+    from framework.check_cache import traffic_once
+    environment = Environment(deployment, attempt / 'environment.json')
+    environment.report = report
+    def smoke():
+        environment.record(spec['id'], 'ai-rdma-smoke', lambda:
+            execute(short, deployment['mpi'], attempt / 'smoke', remotes, binary_dir,
+                    remote_dir + '/smoke', gid, 120))
+    evidence = traffic_once(spec, deployment, run_dir, attempt, environment, smoke,
+                            shared['refreshed'] if shared is not None else (set() if refresh else None),
+                            identity=smoke_identity(short, deployment, report, gid),
+                            evidence_dir=attempt / 'smoke')
+    report['ai'].update(status='passed', gid_index=gid,
+                        cpu_binding='reused' if evidence['reused'] else 'passed',
+                        rdma_smoke='reused' if evidence['reused'] else 'passed',
+                        traffic_evidence=evidence)
     atomic_json(run_dir / 'environment.json', report)
     atomic_json(attempt / 'environment.json', report)
     if stage == 'check':

@@ -519,17 +519,20 @@ def run_ai(args):
         run_dir.mkdir(parents=True, exist_ok=True)
         status = json.loads(status_path.read_text()) if status_path.exists() else dict(run_id=args.run_id, experiment='ai_workload', tasks={})
         built = set()
+        shared = dict(selected=selected, deployment=deployment, run_dir=run_dir,
+                      refreshed=set() if args.refresh_environment else None)
         if args.stage in ('prepare', 'check'):
             for spec in selected:
                 effective = experiment_deployment(deployment, spec)
                 if args.stage == 'prepare':
                     directory = run_dir / 'preparation' / spec['id']
                     directory.mkdir(parents=True, exist_ok=True)
-                    report, _, _ = ai.prepare(spec, effective, directory, args.refresh_environment)
+                    report, _, _ = ai.prepare(spec, effective, directory, args.refresh_environment, shared)
                     atomic_json(run_dir / 'environment.json', report)
                 else:
                     task = dict(task_id=spec['id'] + '-check', repeat=1)
-                    ai.run_task(spec, effective, task, run_dir, None, built, stage='check', refresh=True)
+                    ai.run_task(spec, effective, task, run_dir, None, built, stage='check',
+                                refresh=args.refresh_environment, shared=shared)
             return
         wanted = {f'{s["id"]}-r{r:03d}' for s, r in plan}
         if status['tasks'] and set(status['tasks']) != wanted:
@@ -565,7 +568,7 @@ def run_ai(args):
             task.update(started=time.time(), exit_code=None, error=None)
             try:
                 ai.run_task(spec, experiment_deployment(deployment, spec), task, run_dir, status,
-                            built, refresh=args.refresh_environment)
+                            built, refresh=args.refresh_environment, shared=shared)
             except BaseException as error:
                 task.update(status='failed', exit_code=1, error=str(error), finished=time.time())
                 persist(run_dir, status)

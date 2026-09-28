@@ -67,8 +67,10 @@ def cached_traffic(run_dir, identity):
         return path, None
 
 
-def traffic_once(experiment, deployment, run_dir, attempt, environment, action, refreshed=None):
-    identity = traffic_identity(experiment, deployment)
+def traffic_once(experiment, deployment, run_dir, attempt, environment, action, refreshed=None,
+                 *, identity=None, evidence_dir=None):
+    if identity is None:
+        identity = traffic_identity(experiment, deployment)
     path, cached = cached_traffic(run_dir, identity)
     key = canonical_hash(identity)
     # An explicit refresh invalidates each algorithm once, not once per mode.
@@ -82,14 +84,15 @@ def traffic_once(experiment, deployment, run_dir, attempt, environment, action, 
         environment.record(experiment['id'], 'traffic-reuse', lambda: detail)
         from framework.progress import progress
         progress(f"Reusing {experiment['algorithm']} traffic check from {cached['experiment']}")
-        return
+        return dict(detail, reused=True)
     record = dict(identity=identity, experiment=experiment['id'], mode=experiment['group'],
                   attempt=str(attempt.relative_to(run_dir)), status='running', files={})
     atomic_json(path, record)
     try:
         action()
         record['files'] = {str(p.relative_to(run_dir)): digest(p)
-                           for p in (attempt / 'checks').rglob('*') if p.is_file()}
+                           for p in (evidence_dir if evidence_dir is not None else attempt / 'checks').rglob('*')
+                           if p.is_file()}
         if not record['files']:
             raise ValueError('Traffic validation produced no check evidence')
         record['status'] = 'passed'
@@ -98,3 +101,6 @@ def traffic_once(experiment, deployment, run_dir, attempt, environment, action, 
         raise
     finally:
         atomic_json(path, record)
+
+    return dict(source_experiment=experiment['id'], tested_mode=experiment['group'],
+                source_attempt=record['attempt'], cache=str(path), reused=False)
