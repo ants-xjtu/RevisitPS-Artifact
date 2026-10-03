@@ -38,7 +38,7 @@ measurement:
   interval_seconds: 1
   bidirectional: true
 # Optional local overrides by paper experiment (lossless/lossy), then variant
-# (e.g. lossless-rps). No incast policy is applied to Figure 2.
+# (e.g. lossless-rps). No incast policy is applied to the DCN workload.
 experiment_overrides: {}
 
 # Build inside the controller container; MPI execution stays on this host.

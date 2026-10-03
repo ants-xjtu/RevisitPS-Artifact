@@ -1,7 +1,7 @@
 # Paper MTU 1000 B is represented by supported verbs MTU 1024 B.
 # QP timeout uses 4.096 us * 2**n; see README for hardware differences.
-name: figure2-lossless
-description: 'Paper Figure 2: lossless, WebSearch, 80% of 100 Gbps, 180 seconds'
+name: dcn_workload-lossless
+description: 'DCN workload: lossless, WebSearch, 80% of 100 Gbps, 180 seconds'
 root_path: .
 log:
   level: info
@@ -21,10 +21,10 @@ applications:
     local_path: trace/WebSearch-0.8-180s
     remote_path: trace/WebSearch-0.8-180s
   remote_rdma:
-    runtime_log: logs/runtime/figure2-lossless
+    runtime_log: logs/runtime/dcn_workload-lossless
     check:
-      counter_log: data/figure2-lossless/check/counter_log
-      result: data/figure2-lossless/check/result
+      counter_log: data/dcn_workload-lossless/check/counter_log
+      result: data/dcn_workload-lossless/check/result
       remote_log: data
       cmd:
         base_port: 20000
@@ -41,7 +41,7 @@ applications:
         timeout: 30
       kill_cmd: pkill -f ib_write_bw
     test:
-      local_log: data/figure2-lossless/test/local_log
+      local_log: data/dcn_workload-lossless/test/local_log
       remote_log: data
       remote_trace_dir: trace/WebSearch-0.8-180s
       cmd:
@@ -76,8 +76,8 @@ applications:
         --command 'export PYTHONPATH=$PYTHONPATH:. && python3 {{cp_script_path}}
         --hostname {{hostname}} --topo {{topo}} --switches {{switches}} --hosts {{hosts}}'
   analysis:
-    input_folder: data/figure2-lossless/test/local_log
-    output_folder: data/processed/figure2-lossless
+    input_folder: data/dcn_workload-lossless/test/local_log
+    output_folder: data/processed/dcn_workload-lossless
   plot:
     function: fct
 paper_parameters:

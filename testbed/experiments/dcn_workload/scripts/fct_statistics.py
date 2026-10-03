@@ -21,7 +21,7 @@ def summarize_size_buckets(records, buckets=BUCKETS):
         for offset in range(width):
             ordered.extend((size, value) for value in values[offset::width])
     if len(ordered) < buckets:
-        raise ValueError(f'Need at least {buckets} valid flows for Figure 2')
+        raise ValueError(f'Need at least {buckets} valid flows for FCT')
     # Per-bucket identities differ under historical latency-based interleaving.
     # Compare the complete input identity set instead of requiring identical
     # members in each bucket.
@@ -44,16 +44,16 @@ def normalize(rows):
     for row in rows:
         key = (row['group'], row['algorithm'], row['repeat'], row['bucket'])
         if not isinstance(row['bucket'], int) or not 0 <= row['bucket'] < BUCKETS:
-            raise ValueError(f'Invalid Figure 2 bucket: {key}')
+            raise ValueError(f'Invalid FCT bucket: {key}')
         if key in indexed:
-            raise ValueError(f'Duplicate Figure 2 row: {key}')
+            raise ValueError(f'Duplicate FCT row: {key}')
         if row['group'] not in ('lossless', 'lossy') or row['algorithm'] not in ALGORITHMS:
-            raise ValueError(f'Unexpected Figure 2 condition: {key}')
+            raise ValueError(f'Unexpected FCT condition: {key}')
         if not math.isfinite(row['p99_us']) or row['p99_us'] <= 0 or row['samples'] < 1:
             raise ValueError(f'Invalid P99/sample count: {key}')
         indexed[key] = row
     if not indexed:
-        raise ValueError('No Figure 2 size-bucket data; run parse on completed experiments first')
+        raise ValueError('No FCT size-bucket data; run parse on completed experiments first')
     curves = []
     for fabric in sorted({key[0] for key in indexed}):
         repeats = sorted({key[2] for key in indexed if key[0] == fabric})
@@ -64,7 +64,7 @@ def normalize(rows):
                     key = (fabric, algorithm, repeat, bucket)
                     baseline_key = (fabric, 'BigSwitch', repeat, bucket)
                     if key not in indexed or baseline_key not in indexed:
-                        raise ValueError(f'Incomplete Figure 2 comparison: missing {key} or {baseline_key}')
+                        raise ValueError(f'Incomplete FCT comparison: missing {key} or {baseline_key}')
                     row, baseline = indexed[key], indexed[baseline_key]
                     for field in ('size_min_bytes', 'size_max_bytes', 'samples', 'input_identity_sha256'):
                         if row[field] != baseline[field]:

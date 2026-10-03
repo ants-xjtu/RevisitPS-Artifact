@@ -1,4 +1,4 @@
-"""Render Figure 2 using the root plot library and its unmodified paper style."""
+"""Render FCT using the root plot library and its unmodified paper style."""
 import csv
 import hashlib
 import json
@@ -59,18 +59,18 @@ def save(plot, path):
 
 def plot_results(run_dir):
     run_dir = Path(run_dir)
-    source = run_dir / 'parsed/figure2-buckets.json'
+    source = run_dir / 'parsed/fct-buckets.json'
     if not source.is_file():
-        raise ValueError('Missing Figure 2 buckets; rerun --stage parse with the updated parser')
+        raise ValueError('Missing FCT buckets; rerun --stage parse with the updated parser')
     curves = normalize(json.loads(source.read_text()))
     output = run_dir / 'figures'
     output.mkdir(exist_ok=True)
-    with (output / 'figure2-source.csv').open('w') as stream:
+    with (output / 'fct-source.csv').open('w') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(curves[0]))
         writer.writeheader()
         writer.writerows(curves)
     fabrics = [f for f in ('lossless', 'lossy') if any(r['group'] == f for r in curves)]
-    spec = dict(figure=dict(id='figure2', claim='Compare P99 FCT against BigSwitch across flow sizes.',
+    spec = dict(figure=dict(id='fct', claim='Compare P99 FCT against BigSwitch across flow sizes.',
                            source_scale=3, target_width_inches=7, status='generated-awaiting-visual-review'),
                 source_data=dict(path=str(source.resolve()), sha256=hashlib.sha256(source.read_bytes()).hexdigest()),
                 panels=fabrics, methods=list(ALGORITHMS),
@@ -88,7 +88,7 @@ def plot_results(run_dir):
             plot = LinePointPlot()
             plot.fig.set_size_inches(10.5, 8.4)
             draw_panel(plot, curves, fabric)
-            save(plot, output / ('figure2' + ('a-' if fabric == 'lossless' else 'b-') + fabric))
+            save(plot, output / f'fct-{fabric}')
         if len(fabrics) == 2:
             plot = LinePointPlot(nplots=2)
             plot.fig.set_size_inches(21, 8.4)
@@ -106,7 +106,7 @@ def plot_results(run_dir):
                 draw_panel(plot, curves, fabric, index)
                 plot.axes[index].text(.5, -.36, '(a) Lossless' if index == 0 else '(b) Lossy',
                                       transform=plot.axes[index].transAxes, ha='center', fontsize=30)
-            save(plot, output / 'figure2')
+            save(plot, output / 'fct')
     (output / 'caption.md').write_text(
         'Normalized 99th percentile FCT for WebSearch at 80% offered load: '
         + ('(a) lossless and (b) lossy. ' if len(fabrics) == 2 else fabrics[0] + ' fabric. ')
@@ -115,4 +115,4 @@ def plot_results(run_dir):
         + 'Within each flow-size rank, P99 FCT is normalized '
         'to BigSwitch using the same inputs and repeat. Lines show equal-weight means '
         'of per-repeat ratios; where multiple repeats exist, bands show their range.\n')
-    print('Figure 2 outputs: ' + str(output))
+    print('FCT outputs: ' + str(output))

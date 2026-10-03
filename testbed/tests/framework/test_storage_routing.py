@@ -20,7 +20,7 @@ class StorageRoutingTests(unittest.TestCase):
             excluded = ['data/raw/result.csv', 'trace/traffic.trace', 'logs/runtime.log',
                         'results/dcn_workload/run/parsed/fct.json',
                         'results/dcn_workload/run/configs/snapshot.yaml',
-                        'results/dcn_workload/run/figures/figure2.pdf']
+                        'results/dcn_workload/run/figures/fct.pdf']
             included = ['switches/programs/leaf/program.p4', 'switches/bfrt/controller.py',
                         'switches/scripts/wait_port.sh', 'deployment/topologies/topology.yaml']
             for name in excluded + included:

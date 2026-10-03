@@ -26,15 +26,21 @@ The former network-mode `--experiment` option is now `--network-mode`. The old
 `docker_artifact.sh` command translates its arguments into the unified CLI.
 
 Measurement order remains trace generation → validation → synchronization →
-remote perftest → log collection → FCT parsing → Figure 2 plotting. Traffic
+remote perftest → log collection → FCT parsing → FCT plotting. Traffic
 parameters, load, seed/repeat behavior, connection matrix, source code and FCT
 statistics are preserved. `sources/perftest` remains the same pinned Git submodule
 (commit `253a6c620ebbc0181ea366b088b2ab67572b9ce1`) and is built on RDMA nodes.
 
-Results now live at `results/dcn_workload/<run-id>`. The `figure2` name remains
-only for paper-specific metadata, bucket statistics and figure filenames.
+Results live at `results/dcn_workload/<run-id>`. Parsed summaries use
+`parsed/fct.json` and `parsed/fct.csv`; size-bucket statistics use
+`parsed/fct-buckets.json` and `parsed/fct-buckets.csv`. Plot outputs are
+`figures/fct-lossless.*`, `figures/fct-lossy.*`, and the combined `figures/fct.*`
+(when both modes are present), with normalized data in `figures/fct-source.csv`.
+Names follow workload/metric semantics; paper figure references are retained only
+in documentation and `paper_parameters` metadata. For older results, rerun
+`--stage parse` before `--stage plot` to produce the renamed bucket files.
 `scripts/` contains the active trace generation/synchronization, execution,
-FCT analysis, Figure 2 plotting and throughput diagnostics, plus their shared
+FCT analysis, FCT plotting and throughput diagnostics, plus their shared
 helpers. Unused historical merge/FCT/CDF tools have been removed. See the
 [testbed guide](../../README.md) for prepare/check, diagnostics, resume and SSH
 configuration.
@@ -43,7 +49,7 @@ FCT analysis follows the original testbed scripts at commit `09cf327`: each
 sender CSV drops its final physical line, sorts by `start_time`, and computes
 `end_time - max(start_time, previous_end_time)` (the first row uses `end-start`).
 Units are microseconds. Summary statistics exclude size/FCT values >= 1e9 and
-use NumPy percentiles. Figure 2 floors FCT at 1, interleaves sorted FCTs in 100
+use NumPy percentiles. FCT plotting floors FCT at 1, interleaves sorted FCTs in 100
 sub-buckets within each size, then forms 19 equal-count buckets and uses the
 discrete element at `int(n * 0.99)`. The historical upper cutoff is disabled.
 Raw trace validation explicitly retains all rows and checks the original

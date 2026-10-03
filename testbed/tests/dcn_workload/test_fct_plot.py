@@ -78,16 +78,16 @@ class FctPlotTests(unittest.TestCase):
         self.assertEqual([r['p99_us'] for r in buckets], [1, 1000])
 
     def test_parse_and_plot_original_style(self):
-        if os.environ.get('FIGURE2_RENDER_TEST') != '1':
-            self.skipTest('Set FIGURE2_RENDER_TEST=1 with LaTeX installed for render integration')
+        if os.environ.get('DCN_FCT_RENDER_TEST') != '1':
+            self.skipTest('Set DCN_FCT_RENDER_TEST=1 with LaTeX installed for render integration')
         style_files = [ROOT.parent / 'plot/lib/py/plot' / name for name in ('paper.mplstyle', 'plot.py')]
         before = [digest(p) for p in style_files]
-        with tempfile.TemporaryDirectory(prefix='synthetic-figure2-') as directory:
+        with tempfile.TemporaryDirectory(prefix='synthetic-fct-') as directory:
             root = Path(directory)
             parse_results(root, fixture_run(root))
             with contextlib.redirect_stdout(io.StringIO()):
                 plot_results(root)
-            for stem in ('figure2a-lossless', 'figure2b-lossy', 'figure2'):
+            for stem in ('fct-lossless', 'fct-lossy', 'fct'):
                 for suffix in ('pdf', 'svg', 'png'):
                     self.assertGreater((root / 'figures' / f'{stem}.{suffix}').stat().st_size, 1000)
             self.assertEqual([digest(p) for p in style_files], before)

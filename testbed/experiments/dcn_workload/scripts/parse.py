@@ -182,10 +182,10 @@ def parse_results(run_dir, status):
             end = min(rows[-1]['end'] for rows in series)
             for row in aggregate_windows(series, begin, end):
                 throughput.append(common | row)
-    atomic_json(output / 'figure2-buckets.json', size_buckets)
+    atomic_json(output / 'fct-buckets.json', size_buckets)
     atomic_json(output / 'fct.json', summaries)
     atomic_json(output / 'throughput.json', throughput)
-    for name, rows in [('fct', summaries), ('throughput', throughput), ('figure2-buckets', size_buckets)]:
+    for name, rows in [('fct', summaries), ('throughput', throughput), ('fct-buckets', size_buckets)]:
         if rows:
             with (output / (name + '.csv')).open('w') as stream:
                 writer = csv.DictWriter(stream, list(rows[0]))

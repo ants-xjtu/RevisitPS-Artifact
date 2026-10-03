@@ -161,7 +161,7 @@ Outputs are under `results/<experiment>/<run-id>/`: `status.json`, `manifest.csv
 `figures/`. DCN retains its existing endpoint/check/counter log layout inside
 attempts. Raw samples for each AI group and repeat remain separate. AI plots
 show per-group/per-repeat mean JCT in microseconds; summaries also contain median
-and nearest-rank p99. Figure 2's FCT/statistical definitions are unchanged.
+and nearest-rank p99. DCN FCT/statistical definitions are unchanged.
 
 ```bash
 ./run.sh --experiment ai_workload --run-id ai-trial1 --stage status
@@ -252,7 +252,7 @@ Do not resume pre-migration tasks by just moving their directories: absolute
 paths and implementation identities have changed. Historical AI raw results
 remain in `experiments/ai_workload/reference_results/` with unchanged checksums.
 Unused historical FCT merge, parsing and CDF utilities have been removed;
-DCN scripts retain the current Figure 2 pipeline and throughput diagnostics.
+DCN scripts retain the current FCT pipeline and throughput diagnostics.
 
 See [the migration report](docs/testbed-reorganization-report.md) for changes and
 validation, and the individual [DCN](experiments/dcn_workload/README.md) and
@@ -262,11 +262,11 @@ validation, and the individual [DCN](experiments/dcn_workload/README.md) and
 
 ```bash
 python -m pip install -r docker/requirements.lock.txt
-PYTHONPATH="$PWD" MPLBACKEND=Agg FIGURE2_RENDER_TEST=1 \
+PYTHONPATH="$PWD" MPLBACKEND=Agg DCN_FCT_RENDER_TEST=1 \
   python -m unittest discover -s tests -t . -v
 ```
 
-Figure 2 render tests require LaTeX. Offline tests validate commands, parsers,
+DCN FCT render tests require LaTeX. Offline tests validate commands, parsers,
 cleanup and recovery, but do not replace real MPI/RDMA/Tofino hardware acceptance.
 
 DCN task failures during traffic, collection, or local result validation continue
