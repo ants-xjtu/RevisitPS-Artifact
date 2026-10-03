@@ -8,7 +8,8 @@ COPY testbed/docker/requirements.lock.txt /tmp/requirements.lock.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.lock.txt
 ARG ARTIFACT_UID=1000
 ARG ARTIFACT_GID=1000
-RUN groupadd -g "$ARTIFACT_GID" artifact && useradd -m -u "$ARTIFACT_UID" -g "$ARTIFACT_GID" artifact
+RUN groupadd -g "$ARTIFACT_GID" artifact && useradd -m -u "$ARTIFACT_UID" -g "$ARTIFACT_GID" artifact && \
+    install -d -m 0700 -o artifact -g artifact /home/artifact/.ssh
 COPY --chown=artifact:artifact testbed /opt/artifact/testbed
 COPY --chown=artifact:artifact plot/lib /opt/artifact/plot/lib
 ARG PROJECT_VERSION=unknown

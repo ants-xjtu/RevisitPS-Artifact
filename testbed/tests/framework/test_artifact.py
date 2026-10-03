@@ -64,20 +64,19 @@ class ArtifactTests(unittest.TestCase):
             main(['--run-id', '../outside', '--dry-run'])
 
     def test_check_aggregates_failed_and_successful_experiments(self):
-        deployment = {'measurement': {'threshold_gbps': 90, 'duration_seconds': 10,
+        deployment = {'rdma': {'user': 'test'}, 'tofino': {'user': 'test'},
+                      'measurement': {'threshold_gbps': 90, 'duration_seconds': 10,
                                       'warmup_seconds': 5, 'interval_seconds': 1}}
         registry = [{'id': 'first', 'group': 'test'}, {'id': 'second', 'group': 'test'}]
         visited = []
 
-        def check(environment, hosts, switches):
-            experiment = environment.path.parent.name
-            visited.append(experiment)
-            success = experiment == 'second'
-            environment.report['checks'] = [dict(target='test@host', item='packages',
-                passed=success, status='passed' if success else 'failed', error='missing' if not success else '')]
-            environment.save()
-            if not success:
+        def check(experiment, *args, **kwargs):
+            visited.append(experiment['id'])
+            if experiment['id'] == 'first':
                 raise CheckFailed('missing')
+
+        def prepare(environment, *args, **kwargs):
+            environment.record('test@host', 'packages', lambda: 'available')
 
         previous = os.getcwd()
         try:
@@ -88,10 +87,9 @@ class ArtifactTests(unittest.TestCase):
                  patch('framework.runner.validate', return_value=(None, None, {}, {}, None)), \
                  patch('framework.runner.perftest_commit', return_value='test'), \
                  patch('framework.runner.device_lock', return_value=contextlib.nullcontext()), \
-                 patch('framework.runner.Environment.check', new=check), \
                  patch('framework.environment_cache.prepare_environment',
-                       side_effect=lambda env, hosts, switches, *a, **k: env.check(hosts, switches)), \
-                 patch('framework.runner.check_experiment_traffic', return_value=None) as traffic_check, \
+                       side_effect=prepare), \
+                 patch('framework.runner.check_experiment_traffic', side_effect=check) as traffic_check, \
                  patch.dict(os.environ), contextlib.redirect_stdout(io.StringIO()) as output:
                 with self.assertRaises(CheckFailed):
                     main(['--run-id', 'aggregate', '--stage', 'check'])
@@ -100,7 +98,7 @@ class ArtifactTests(unittest.TestCase):
                 self.assertEqual(report['summary'], {'total': 3, 'passed': 2, 'failed': 1, 'skipped': 0})
                 self.assertEqual(set(report['experiments']), {'first', 'second'})
                 self.assertIn('2 passed, 1 failed', output.getvalue())
-                traffic_check.assert_called_once()
+                self.assertEqual(traffic_check.call_count, 2)
                 self.assertEqual(traffic_check.call_args.args[0]['id'], 'second')
         finally:
             os.chdir(previous)

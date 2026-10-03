@@ -4,6 +4,7 @@ import os
 import re
 import sys
 from framework.paths import REPO_ROOT as ROOT
+from framework.remote import ssh_spacing
 
 
 def main(argv=None):
@@ -12,12 +13,12 @@ def main(argv=None):
     if argv and argv[0] == 'nic':
         from framework.rdma.config_nic import main as nic
         from framework.runner import device_lock
-        with device_lock():
+        with device_lock(), ssh_spacing():
             return nic(argv[1:])
     if argv and argv[0] == 'diagnose':
         from framework.diagnostics import main as diagnose
         from framework.runner import device_lock
-        with device_lock():
+        with device_lock(), ssh_spacing():
             return diagnose.main(args=argv[1:], standalone_mode=False)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--experiment', choices=['dcn_workload', 'ai_workload'], required=True)

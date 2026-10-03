@@ -1,5 +1,8 @@
 """Deploy all switches before configuring/validating inter-switch physical links."""
 import shlex
+import shutil
+import tempfile
+from pathlib import Path
 import click
 from framework.conf_parser.yaml_parser import SwitchConfParser
 from switches.remote import RemoteTofinoHelper
@@ -33,10 +36,15 @@ def run_switch_config(test_conf_parser, do_build=False, do_run=False, do_config=
         config_dir = helper.remote_cwd + '/runtime/configs/' + helper.run_id
         with stage(f'Switch configuration upload: {name}'):
             helper.remote.ssh('mkdir -p ' + shlex.quote(config_dir))
-            for key in ('topo', 'switches', 'hosts'):
-                destination = config_dir + '/' + key + '.yaml'
-                logged_run(['scp', *SSH_OPTIONS, conf.config.get(key), helper.remote.target + ':' + destination], 60)
-                remote_configs[key] = destination
+            with tempfile.TemporaryDirectory(prefix='switch-config-') as folder:
+                sources = []
+                for key in ('topo', 'switches', 'hosts'):
+                    source = Path(folder) / (key + '.yaml')
+                    shutil.copyfile(conf.config.get(key), source)
+                    sources.append(str(source))
+                    remote_configs[key] = config_dir + '/' + key + '.yaml'
+                logged_run(['scp', *SSH_OPTIONS, *sources,
+                            helper.remote.target + ':' + shlex.quote(config_dir + '/')], 60)
         deployments.append((helper, program, remote_configs))
     if do_run:
         for helper, program, _ in deployments:

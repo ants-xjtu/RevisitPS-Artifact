@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from framework.remote import logged_run, ssh_spacing
+from framework.remote import logged_run, ssh_spacing, SSHConnectionError
 
 
 class SSHSpacingTests(unittest.TestCase):
@@ -42,7 +42,7 @@ class SSHSpacingTests(unittest.TestCase):
                  subprocess.CompletedProcess(['ssh'], 0, '', ''),
                  subprocess.CompletedProcess(['ssh'], 0, '', '')]):
             with ssh_spacing(1):
-                with self.assertRaises(subprocess.TimeoutExpired):
+                with self.assertRaises(SSHConnectionError):
                     logged_run(['ssh', 'dc20'])
                 logged_run(['ssh', 'dc21'])
             logged_run(['ssh', 'dc22'])

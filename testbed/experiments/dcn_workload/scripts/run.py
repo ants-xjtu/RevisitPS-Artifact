@@ -33,7 +33,7 @@ def trace_inputs(runtime, parser, run_dir):
                 raise ValueError('Trace message exceeds configured perftest allocation')
             hashes[name] = digest(folder / name)
     with stage('Trace synchronization and remote checksum verification'):
-        sync_trace.callback(parser)
+        sync_trace.callback(parser, hashes=hashes)
     return hashes
 
 
@@ -70,7 +70,7 @@ def run_task(experiment, deployment, repeat, task, run_dir, resume=False, built=
     from framework.runner import (atomic_json, snapshot, prepare_runtime, persist, Environment,
                                   intact, save_runtime, trace_inputs, collect_and_validate)
     from framework.environment_cache import prepare_environment
-    from framework.rdma.run_test import load_endpoints, execute_connections
+    from framework.rdma.run_test import load_endpoints, execute_connections, TrafficExecutionError
     from framework.rdma.config_nic import configure
     from switches.scripts.config_sw import run_switch_config
     old = copy.deepcopy(task)
@@ -105,13 +105,16 @@ def run_task(experiment, deployment, repeat, task, run_dir, resume=False, built=
         task['trace_hashes'] = trace_inputs(runtime, parser, run_dir)
         save_runtime(runtime, attempt)
     with stage('Pre-traffic counters'):
-        for ip, helper in helpers.items():
-            (attempt / 'counters').mkdir(exist_ok=True)
-            (attempt / 'counters' / (ip + '.before')).write_text(helper.get_counter())
+        from framework.rdma.nic_batch import collect_counters
+        collect_counters(helpers, attempt / 'counters', '.before')
     conf = parser.get().applications.remote_rdma.test
     execute_connections(parser, connections, helpers, duration=conf.cmd.timeout if experiment['traffic'] == 'bandwidth' else None)
-    with stage('Collected data validation'):
-        task['files'] = collect_and_validate(attempt, runtime, links)
+    try:
+        with stage('Collected data validation'):
+            task['files'] = collect_and_validate(attempt, runtime, links)
+    except Exception as exc:
+        # execute_connections returned only after confirming traffic cleanup.
+        raise TrafficExecutionError(str(exc), can_continue=True) from exc
     task.update(status='completed', finished=time.time(), exit_code=0)
 
 

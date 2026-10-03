@@ -22,7 +22,7 @@ def validate_trace(path):
 
 
 @click.command()
-def sync_trace(test_conf_parser):
+def sync_trace(test_conf_parser, hashes=None):
     conf = test_conf_parser.get()
     hosts = HostConfParser(conf.config.hosts)
     hosts.load_conf_file()
@@ -30,11 +30,15 @@ def sync_trace(test_conf_parser):
     links.load_conf_file()
     helpers = generate_ip_helper_map({c['sender'] for c in links.connections}, hosts.hosts, conf.applications.remote_rdma.user)
     source = Path(conf.applications.gen_trace.local_path)
-    hashes = {}
-    for connection in links.connections:
-        name = f"{connection['sender']}-{connection['receiver']}.trace"
-        validate_trace(source / name)
-        hashes[name] = hashlib.sha256((source / name).read_bytes()).hexdigest()
+    names = [f"{connection['sender']}-{connection['receiver']}.trace" for connection in links.connections]
+    if hashes is None:
+        hashes = {}
+        for name in names:
+            validate_trace(source / name)
+            hashes[name] = hashlib.sha256((source / name).read_bytes()).hexdigest()
+    if set(hashes) != set(names):
+        raise ValueError('Trace checksum manifest does not match connections')
+    manifest = ''.join(f'{hashes[name]}  {name}\n' for name in names)
     seen = set()
     for helper in helpers.values():
         if helper.target in seen:
@@ -42,7 +46,5 @@ def sync_trace(test_conf_parser):
         seen.add(helper.target)
         destination = helper.absolute(conf.applications.gen_trace.remote_path)
         helper.sync_local_to_remote(source, destination)
-        for name, digest in hashes.items():
-            actual = helper.ssh('sha256sum ' + shlex.quote(destination + '/' + name)).stdout.split()[0]
-            if actual != digest:
-                raise RuntimeError(f'{helper.target}: trace checksum mismatch: {name}')
+        helper.ssh('cd ' + shlex.quote(destination) + ' && printf %s ' +
+                   shlex.quote(manifest) + ' | sha256sum -c -')

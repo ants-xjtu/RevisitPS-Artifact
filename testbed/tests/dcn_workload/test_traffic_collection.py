@@ -24,9 +24,9 @@ class TrafficCollectionTests(unittest.TestCase):
         for ip in ('sender', 'receiver'):
             helper = Mock(target=ip, processes=[])
             helper.absolute.side_effect = lambda path: path
-            helper.ssh.return_value = SimpleNamespace(stdout='')
-            helper.exit_code.return_value = 0
-            helper.get_counter.return_value = 'counters'
+            helper.ssh.return_value = SimpleNamespace(stdout=json.dumps({ip: 'counters'}))
+            helper.exit_codes_many.side_effect = lambda processes, **kwargs: [0] * len(processes)
+            helper.counter_command.return_value = 'read counters'
 
             def start(command, log, helper=helper):
                 commands.append(command)
@@ -34,14 +34,18 @@ class TrafficCollectionTests(unittest.TestCase):
                 helper.processes.append(proc)
                 return proc
 
-            def copy(source, target):
-                copied.append(Path(target).name)
-                if source.endswith('.receiver.log.csv') or (missing and source.endswith(missing)):
-                    raise FileNotFoundError(source)
-                Path(target).write_text('collected')
+            def copy(source, target, helper=helper):
+                for proc in helper.processes:
+                    names = [Path(proc['log']).name]
+                    if '--trace_log' in proc['command']:
+                        names.append(names[0] + '.csv')
+                    for name in names:
+                        copied.append(name)
+                        if not (missing and name.endswith(missing)):
+                            (Path(target) / name).write_text('collected')
 
-            helper.start.side_effect = start
-            helper.sync_remote_to_local.side_effect = copy
+            helper.start_many.side_effect = lambda jobs, start=start: [start(*job) for job in jobs]
+            helper.sync_remote_directory_to_local.side_effect = copy
             helpers[ip] = helper
         with patch.dict(os.environ, {'ARTIFACT_SWITCH_LOG': ''}), \
              patch('framework.rdma.run_test.render_command', return_value='ib_write_trace'):

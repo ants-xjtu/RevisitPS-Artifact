@@ -42,14 +42,14 @@ class EnvironmentTests(unittest.TestCase):
 
     def test_package_check_is_read_only(self):
         remote = Mock()
-        remote.ssh.return_value = result(1)
+        remote.ssh.return_value = result(output='rsync\n')
         with self.assertRaisesRegex(RuntimeError, 'Missing packages'):
             self.env.packages(remote, ['rsync'], False)
         self.assertFalse(any('apt-get' in call.args[0] for call in remote.ssh.call_args_list))
 
     def test_package_prepare_rechecks(self):
         remote = Mock()
-        remote.ssh.side_effect = [result(1), result(), result(), result(1)]
+        remote.ssh.side_effect = [result(output='rsync\n'), result(), result(), result(output='rsync\n')]
         with self.assertRaisesRegex(RuntimeError, 'Missing packages'):
             self.env.packages(remote, ['rsync'], True)
         self.assertEqual(sum('apt-get install' in call.args[0] for call in remote.ssh.call_args_list), 1)
@@ -62,10 +62,10 @@ class EnvironmentTests(unittest.TestCase):
 
     def test_package_ssh_failure_is_not_missing_or_installed(self):
         remote = Mock()
-        remote.ssh.side_effect = [result(255), result()]
+        remote.ssh.side_effect = [result(255)]
         with self.assertRaisesRegex(RuntimeError, 'Package checks incomplete'):
             self.env.packages(remote, ['rsync', 'python3'], True)
-        self.assertEqual(remote.ssh.call_count, 2)
+        self.assertEqual(remote.ssh.call_count, 1)
         self.assertFalse(any('apt-get' in c.args[0] for c in remote.ssh.call_args_list))
 
     def test_nix_healthy_daemon_does_not_need_systemd(self):
@@ -153,8 +153,8 @@ class CompleteCheckTests(unittest.TestCase):
                 self.commands.append((hostname, command))
                 if hostname in self.offline:
                     raise RuntimeError('Connection unavailable')
-                if command.startswith('dpkg-query'):
-                    return result(int(hostname in self.missing_packages))
+                if 'dpkg-query' in command:
+                    return result(output='util-linux\n' if hostname in self.missing_packages else '')
                 if command.startswith('df '):
                     return result(output='1000')
                 if 'ofed_info' in command:

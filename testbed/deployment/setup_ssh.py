@@ -17,11 +17,15 @@ Host *
   BatchMode yes
   ForwardAgent no
   ConnectTimeout 10
+  ConnectionAttempts 1
+  ServerAliveInterval 15
+  ServerAliveCountMax 3
   IdentityAgent /run/artifact-agent.sock
   IdentityFile none
   IdentitiesOnly no
-  ControlMaster no
-  ControlPath none
+  ControlMaster auto
+  ControlPersist 60
+  ControlPath ~/.ssh/artifact-%C
 
 """
 

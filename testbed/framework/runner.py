@@ -20,7 +20,7 @@ for path in (ROOT, ROOT.parent / 'plot'):
     sys.path.insert(0, str(path))
 import yaml
 from framework.environment import Environment, CheckFailed, check_summary
-from framework.remote import RemoteRDMAHelper, logged_run, ssh_spacing
+from framework.remote import RemoteRDMAHelper, logged_run, ssh_spacing, SSHConnectionError
 from framework.progress import progress, stage
 from framework.results import atomic_json, digest, canonical_hash, intact, manifest, persist
 from framework.conf_parser.yaml_parser import TestConfParser
@@ -230,11 +230,20 @@ def prepare_runtime(runtime, report, attempt, run_id, task_id, deployment):
 
 
 def recover_processes(run_dir):
+    groups = {}
     for journal in sorted(run_dir.glob('tasks/*/attempt-*/processes.jsonl')):
         for line in journal.read_text().splitlines():
             proc = json.loads(line)
-            user, hostname = proc['target'].split('@', 1)
-            RemoteRDMAHelper(user, hostname).stop(proc)
+            groups.setdefault(proc['target'], {})[proc['state']] = proc
+    errors = []
+    for target, processes in groups.items():
+        user, hostname = target.split('@', 1)
+        try:
+            RemoteRDMAHelper(user, hostname).stop_many(processes.values())
+        except Exception as exc:
+            errors.append(str(exc))
+    if errors:
+        raise RuntimeError('Process recovery failed: ' + '; '.join(errors))
 
 
 def trace_inputs(*args, **kwargs):
@@ -260,6 +269,26 @@ def device_lock():
         except BlockingIOError:
             raise RuntimeError('The testbed is already held by another local artifact process')
         yield
+
+
+def prepare_dcqcn(experiments, deployment):
+    """Apply each distinct live DCQCN profile even on readiness cache hits."""
+    from framework.rdma.config_nic import configure_dcqcn, dcqcn_values
+    from framework.remote import generate_ip_helper_map
+    prepared = set()
+    for experiment in experiments:
+        effective = experiment_deployment(deployment, experiment)
+        _, _, hosts, _, _ = validate(experiment)
+        rdma = effective['rdma']
+        key = canonical_hash({'hosts': {ip: {k: host.get(k) for k in ('hostname', 'eth', 'user')}
+                                        for ip, host in hosts.items()}, 'user': rdma['user'],
+                              'dcqcn': {ip: dcqcn_values(rdma, ip) for ip in hosts}})
+        if key in prepared:
+            continue
+        helpers = generate_ip_helper_map(hosts, hosts, rdma['user'])
+        with stage('DCQCN preparation and readback'):
+            configure_dcqcn(helpers, effective)
+        prepared.add(key)
 
 
 def check_experiment_traffic(experiment, deployment, run_dir, environment, built, *, cache_traffic=False, refreshed=None):
@@ -360,12 +389,11 @@ def main(argv=None):
         return
     os.environ['PERFTEST_COMMIT'] = perftest_commit()
     os.environ['ARTIFACT_RUN_ID'] = args.run_id
-    with device_lock(), ssh_spacing(1 if args.stage == 'check' else 0):
+    with device_lock(), ssh_spacing():
+        print('SSH pacing: at least 2 seconds between remote requests (all hosts).', flush=True)
         run_dir.mkdir(parents=True, exist_ok=True)
         os.environ['ARTIFACT_COMMAND_LOG'] = str(run_dir / 'checks/commands.log')
         if args.stage in ('check', 'prepare'):
-            if args.stage == 'check':
-                print('SSH pacing: at least 1 second between remote requests (all hosts).', flush=True)
             from framework.check_cache import readiness_batches
             combined = {'checks': [], 'common': {}, 'experiments': {}}
             built = set()
@@ -386,6 +414,7 @@ def main(argv=None):
                     if not ready:
                         atomic_json(run_dir / 'environment.json', combined)
                         raise CheckFailed('Shared environment preparation failed')
+                    prepare_dcqcn(batch['experiments'], deployment)
                     continue
                 for experiment in batch['experiments']:
                     print(f"[check] Algorithm/mode configuration: {experiment['id']}", flush=True)
@@ -405,6 +434,8 @@ def main(argv=None):
                                 check_experiment_traffic(experiment, experiment_deployment(deployment, experiment),
                                                          run_dir, environment, built, cache_traffic=True,
                                                          refreshed=refreshed))
+                        except SSHConnectionError:
+                            raise
                         except Exception:
                             pass  # Failure is recorded; inspect other algorithms.
                     combined['experiments'][experiment['id']] = environment.report
@@ -455,6 +486,8 @@ def main(argv=None):
                                     run_dir / 'checks/common' / key / 'environment.json'),
                                     batch['hosts'], batch['switches'], run_dir.parent,
                                     refresh=args.refresh_environment)
+        from framework.rdma.run_test import TrafficExecutionError
+        failed_tasks = []
         built = set()
         for task_number, (experiment, repeat) in enumerate(plan, 1):
             task = status['tasks'][f'{experiment["id"]}-r{repeat:03d}']
@@ -471,9 +504,16 @@ def main(argv=None):
                 task.update(status='failed', finished=time.time(), exit_code=1, error=str(exc))
                 persist(run_dir, status)
                 progress(f'FAIL task {task["task_id"]}: {exc or type(exc).__name__}')
+                if isinstance(exc, TrafficExecutionError) and exc.can_continue:
+                    failed_tasks.append(task['task_id'])
+                    progress('Traffic cleanup confirmed; continuing to the next task')
+                    continue
                 raise
             persist(run_dir, status)
             progress(f'DONE task {task["task_id"]}')
+        if failed_tasks:
+            progress('Run finished: failed tasks: ' + ', '.join(failed_tasks))
+            raise RuntimeError('Run finished with failed tasks: ' + ', '.join(failed_tasks))
         if args.stage == 'all':
             with stage('Result parsing'):
                 parse_results(run_dir, status)
@@ -512,7 +552,8 @@ def run_ai(args):
         return
     os.environ['PERFTEST_COMMIT'] = perftest_commit()
     os.environ['ARTIFACT_RUN_ID'] = args.run_id
-    with device_lock(), ssh_spacing(1 if args.stage == 'check' else 0):
+    with device_lock(), ssh_spacing():
+        print('SSH pacing: at least 2 seconds between remote requests (all hosts).', flush=True)
         status_path = run_dir / 'status.json'
         if status_path.exists() and not args.resume:
             raise ValueError('run-id already exists; use --resume or a new run-id')

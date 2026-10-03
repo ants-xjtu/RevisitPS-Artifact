@@ -48,6 +48,8 @@ def traffic_identity(experiment, deployment):
                 topology=yaml_read(refs['topo']), links=links,
                 programs={name: sw['program'] for name, sw in switches.items()},
                 measurement=deployment['measurement'], commands=commands,
+                dcqcn={key: deployment['rdma'].get(key) for key in
+                       ('dcqcn', 'dcqcn_overrides', 'dcqcn_parameters')},
                 sources=sources, perftest=perftest_commit(),
                 dependencies=digest(ROOT / 'docker/requirements.lock.txt'),
                 image=os.environ.get('ARTIFACT_IMAGE_ID', 'native'))

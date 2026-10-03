@@ -12,7 +12,7 @@ import stat
 import subprocess
 import time
 
-from framework.remote import RemoteRDMAHelper, logged_run
+from framework.remote import RemoteRDMAHelper, logged_run, SSHConnectionError
 from framework.nix_environment import NIX_ENV, NIX_PING, NIX_START
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -83,17 +83,22 @@ class Environment:
         tmp.replace(self.path)
 
     def packages(self, remote, packages, prepare):
-        missing, errors = [], []
-        for pkg in packages:
-            result = remote.ssh('dpkg-query -W -f=\'${Status}\' ' + shlex.quote(pkg)
-                                + " | grep -qx 'install ok installed'", check=False)
-            if result.returncode == 255:
-                errors.append(f'{pkg}: SSH failed: {result.stderr.strip()}')
-            elif result.returncode:
-                missing.append(pkg)
-        if errors:
-            raise RuntimeError('Package checks incomplete: ' + '; '.join(errors)
-                               + (f'; confirmed missing: {", ".join(missing)}' if missing else ''))
+        if not packages:
+            return {'installed': []}
+        # One SSH session for the whole inventory. Keep dpkg failures distinct
+        # from transport failures and return only the names needing installation.
+        command = ('for pkg in ' + shlex.join(packages) + '; do '
+                   'if ! status=$(dpkg-query -W -f=\'${Status}\' "$pkg" 2>/dev/null) || '
+                   '[ "$status" != "install ok installed" ]; then '
+                   'printf "%s\\n" "$pkg"; fi; done')
+        result = remote.ssh(command, check=False)
+        if result.returncode == 255:
+            raise SSHConnectionError('Package checks incomplete: SSH failed: ' + result.stderr.strip())
+        if result.returncode:
+            raise RuntimeError('Package query failed: ' + result.stderr.strip())
+        missing = result.stdout.splitlines()
+        if any(pkg not in packages for pkg in missing):
+            raise RuntimeError('Unexpected package query output: ' + result.stdout)
         if missing:
             if not prepare:
                 raise RuntimeError('Missing packages: ' + ', '.join(missing))
@@ -224,6 +229,10 @@ class Environment:
                 return None
             try:
                 return self.record(target, item, action)
+            except (SSHConnectionError, subprocess.TimeoutExpired):
+                # A shared gateway may have blocked the controller's address.
+                # Do not continue probing other hosts after transport failure.
+                raise
             except Exception:
                 if prepare:
                     raise
