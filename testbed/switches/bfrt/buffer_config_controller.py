@@ -21,10 +21,21 @@ class IngressBufferConfigController(NormalController):
     super().__init__(target, gc)
     self.tables = [
         bfrt_info.table_get('{}.tm.ppg.cfg'.format(arch)),
-        bfrt_info.table_get('{}.tm.port.flowcontrol'.format(arch))
+        bfrt_info.table_get('{}.tm.port.flowcontrol'.format(arch)),
+        bfrt_info.table_get('{}.tm.pool.cfg'.format(arch))
     ]
     self.ppg_cfg_table = self.tables[0]
     self.ppg_port_flowcontrol_table = self.tables[1]
+    self.pool_cfg_table = self.tables[2]
+
+  def mod_pool_cfg_table(self, pool, size_cells):
+    self.pool_cfg_table.entry_mod(
+        self.target,
+        [self.pool_cfg_table.make_key([self.gc.KeyTuple('pool', self.IG_POOL_TABLE[pool])])],
+        [self.pool_cfg_table.make_data([
+            self.gc.DataTuple('size_cells', size_cells),
+        ])]
+    )
     
   def add_ppg_cfg_table_entry(self, dev_port, ppg_id, icos=0, guaranteed_cells=0, pool_id=0, pool_max_cells=0, pfc_enable=False, pfc_skid_max_cells=0, dynamic_baf='50%'):
     self.ppg_cfg_table.entry_add(

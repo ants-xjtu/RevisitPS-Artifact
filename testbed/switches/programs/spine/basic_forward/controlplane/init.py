@@ -115,6 +115,7 @@ class BufferConfigClient(BfrtGrpcClient):
         self.ingress_buffer_controller.add_ppg_cfg_table_entry(dev_port, ppg_id, 0, self.guaranteed_cells, 0, self.ingress_buffer_cells, self.PFC_ENABLE, self.skid_max_cells, self.ingress_dynamic_baf)
         if self.PFC_ENABLE:
           self.ingress_buffer_controller.mod_port_flowcontrol_entry(dev_port, 'PFC', 'PFC')
+        self.ingress_buffer_controller.mod_pool_cfg_table(0, self.ingress_buffer_cells)
         self.egress_buffer_controller.mod_pool_cfg_table(0, self.egress_buffer_cells)
         pg_id, pg_queue = self.check_controller.get_pg_id_and_pg_queue(dev_port, 0)
         # print(dev_port, pg_id, pg_queue)
