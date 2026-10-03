@@ -6,6 +6,32 @@ experiments:
   traffic: trace
   trace_mode: host
   metric: fct
+  # Experiment DCQCN settings; applied through live ECN sysfs.
+  deployment_overrides:
+    rdma:
+      dcqcn: true
+      dcqcn_parameters:
+        roce_rp:
+          clamp_tgt_rate: 0
+          clamp_tgt_rate_after_time_inc: 1
+          dce_tcp_g: 1019
+          dce_tcp_rtt: 10
+          initial_alpha_value: 1023
+          rate_reduce_monitor_period: 4
+          rate_to_set_on_first_cnp: 0
+          rpg_ai_rate: 40
+          rpg_byte_reset: 32767
+          rpg_gd: 11
+          rpg_hai_rate: 100
+          rpg_max_rate: 0
+          rpg_min_dec_fac: 50
+          rpg_min_rate: 100
+          rpg_threshold: 1
+          rpg_time_reset: 300
+        roce_np:
+          cnp_802p_prio: 6
+          cnp_dscp: 48
+          min_time_between_cnps: 4
   variants:
   - id: bigswitch
     algorithm: BigSwitch
@@ -55,6 +81,32 @@ experiments:
   traffic: trace
   trace_mode: host
   metric: fct
+  # Experiment DCQCN settings; applied through live ECN sysfs.
+  deployment_overrides:
+    rdma:
+      dcqcn: true
+      dcqcn_parameters:
+        roce_rp:
+          clamp_tgt_rate: 0
+          clamp_tgt_rate_after_time_inc: 1
+          dce_tcp_g: 1019
+          dce_tcp_rtt: 10
+          initial_alpha_value: 1023
+          rate_reduce_monitor_period: 4
+          rate_to_set_on_first_cnp: 0
+          rpg_ai_rate: 40
+          rpg_byte_reset: 32767
+          rpg_gd: 11
+          rpg_hai_rate: 100
+          rpg_max_rate: 0
+          rpg_min_dec_fac: 50
+          rpg_min_rate: 100
+          rpg_threshold: 1
+          rpg_time_reset: 300
+        roce_np:
+          cnp_802p_prio: 6
+          cnp_dscp: 48
+          min_time_between_cnps: 4
   variants:
   - id: bigswitch
     algorithm: BigSwitch

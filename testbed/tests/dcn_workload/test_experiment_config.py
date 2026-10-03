@@ -31,11 +31,13 @@ class ExperimentConfigTests(unittest.TestCase):
     def test_snapshot_uses_variant_registers_and_shared_traffic(self):
         registry = yaml_read(ROOT / 'experiments/dcn_workload/experiment.yaml')['experiments']
         self.assertEqual([e['id'] for e in registry], ['lossless', 'lossy'])
+        expected_links = yaml_read(ROOT / 'experiments/dcn_workload/configs/connections/fully_connected.yaml')['connections']
+        self.assertTrue(expected_links)
         traces = []
         for spec in expand_experiments(registry, 'all'):
             config, _, _, switches, links = validate(spec)
             traces.append(config['applications']['gen_trace'])
-            self.assertEqual(len(links), 64)
+            self.assertEqual(links, expected_links)
             self.assertEqual(config['applications']['remote_rdma']['test']['cmd']['config']['qp'], 1)
             for role in ('sender', 'receiver'):
                 self.assertIn('-m 1024', config['applications']['remote_rdma']['test']['cmd'][role])
