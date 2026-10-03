@@ -38,3 +38,25 @@ FCT analysis, Figure 2 plotting and throughput diagnostics, plus their shared
 helpers. Unused historical merge/FCT/CDF tools have been removed. See the
 [testbed guide](../../README.md) for prepare/check, diagnostics, resume and SSH
 configuration.
+
+FCT analysis follows the original testbed scripts at commit `09cf327`: each
+sender CSV drops its final physical line, sorts by `start_time`, and computes
+`end_time - max(start_time, previous_end_time)` (the first row uses `end-start`).
+Units are microseconds. Summary statistics exclude size/FCT values >= 1e9 and
+use NumPy percentiles. Figure 2 floors FCT at 1, interleaves sorted FCTs in 100
+sub-buckets within each size, then forms 19 equal-count buckets and uses the
+discrete element at `int(n * 0.99)`. The historical upper cutoff is disabled.
+Raw trace validation explicitly retains all rows and checks the original
+timestamps; the analysis-only last-line omission does not mask incomplete runs.
+
+DCN status polling, cleanup, counter reads and log transfers are batched by
+management host. Completed process statuses are reused during polling. Cleanup
+retains each process's PID/start-time/token checks, overlaps termination grace
+periods, and verifies that no owned traffic remains before the next task.
+Post-traffic counters are captured before directory log transfers; required
+endpoint logs and sender CSVs are still checked individually. Trace hashes are
+computed during input validation and verified with one checksum manifest per
+sending host. SSH request pacing remains enabled, and command logs include
+`pacing_seconds` separately from command execution time. Resume recovery also
+uses host batches. No changes to the perftest workload or measurement parameters
+are required.

@@ -114,6 +114,41 @@ are `all`. `run` measures without parsing/plotting; `all` also parses and plots.
   the actual endpoint/IP mapping, not copied from the old hardcoded value.
 
 All hardware stages share `runtime/locks/testbed.lock` across both experiments.
+Controller SSH/rsync requests in `prepare`, `check`, `run`, and `all` (and the
+`nic`/`diagnose` entry points) normally have a two-second gap across hosts. DCN
+receiver and sender launches are explicit exceptions. Receiver log paths are
+resolved once per host and all requested listening ports are checked before any
+receiver starts. One concurrent SSH request per receiving host launches its
+receivers using the same batch process management as senders. After every host's
+launch completes, readiness is checked by host: each SSH poll checks every
+receiver's exit file and listening port, retaining the existing readiness criteria
+and 30-second timeout per host. Senders start only after all receivers are ready.
+For sender launch, paths are
+resolved once per sending host and SSH connections are warmed with normal pacing.
+Then one SSH request per sending host runs concurrently, launching all of that
+host's sender processes in the background before checking their PID files. For
+the 64-flow/two-sending-host configuration this uses two concurrent launch SSH
+requests instead of 64 concurrent per-flow requests. Each flow retains its own
+command, log, ownership token, PID/exit files, and cleanup/recovery record. This
+preserves concurrent traffic but is not a synchronized start barrier; recorded
+start times remain controller dispatch timestamps, not measured remote starts.
+
+Generated SSH
+configuration reuses connections, including jump-host connections, for 60 seconds
+after their last use; control sockets live in the container user's private
+`~/.ssh` directory. Each connection is attempted only once. Package inventories
+use one SSH session per host, and SSH transport failures/timeouts abort environment
+checks immediately rather than probing additional packages or hosts. Ordinary
+missing dependencies still appear in the check report. These measures reduce
+connection bursts; the two-second gap is not a verified network-policy threshold.
+
+Existing installations need a rebuilt image, an explicitly recreated console
+between runs, and regenerated SSH configuration via `setup_ssh.sh` to pick up
+these changes. Editing the checkout alone does not update the code copied into
+an existing container. Preserve results and stop any active work before replacing
+the console. Use a new run ID after code changes; old runs may fail resume's
+source-identity validation.
+
 Do not run legacy checkouts against the same hardware concurrently. Switch
 builds still run in the matching SDE environment; DCN perftest still builds on
 the RDMA nodes. AI sources compile in the container, and MPI launches via SSH
@@ -175,6 +210,29 @@ creates no experiment output and neither compiles nor distributes AI programs.
 ./run.sh monitor --run-id dcn-trial1 --switch tf_sw2
 ```
 
+NIC discovery and configuration for DCN, AI, and the NIC wrapper are batched by
+management host. Each host uses one SSH session to discover its selected ports
+and one to read link/IP/MTU/speed, PFC, DSCP trust, DCQCN and configured registers.
+Only values differing from the target are written. A changed host uses one
+additional SSH session to apply its updates and one to read all selected ports
+back; an unchanged host needs no writes or second snapshot. Unknown/unparseable
+state aborts before that host is modified. PSN firmware settings remain read-only.
+DCN lossless and lossy declare host DCQCN defaults in
+`experiments/dcn_workload/experiment.yaml` under
+`deployment_overrides.rdma.dcqcn_parameters` (`roce_rp` / `roce_np`).
+Both enable DCQCN and set `rpg_ai_rate=40`, `rpg_hai_rate=100`,
+`rpg_min_rate=100`, and `dce_tcp_rtt=10`, together with the other explicit
+values in the experiment profile.
+`--stage prepare` applies these live settings even when common environment
+readiness is cached; identical profiles share preparation across variants.
+The normal pre-traffic NIC stage and `nic --check` use the same parameter
+comparison and readback logic. Matching parameters are never rewritten.
+These writes use the existing ECN sysfs interface; they do not change firmware
+Next Boot settings. After a host reboot, prepare restores the experiment profile.
+These are live snapshots, not a cache of NIC state. `nic --check` makes no writes
+and also verifies DSCP trust and configured register values. Per-host progress
+reports distinguish matching ports from applied and verified updates.
+
 NIC wrapper commands are now exposed through the same entry point:
 
 ```bash
@@ -210,3 +268,12 @@ PYTHONPATH="$PWD" MPLBACKEND=Agg FIGURE2_RENDER_TEST=1 \
 
 Figure 2 render tests require LaTeX. Offline tests validate commands, parsers,
 cleanup and recovery, but do not replace real MPI/RDMA/Tofino hardware acceptance.
+
+DCN task failures during traffic, collection, or local result validation continue
+to the next algorithm only after owned traffic processes are confirmed stopped.
+Cleanup checks all launch tokens, including batches that failed to return handles.
+SSH/SCP transport failures, cleanup failures, preparation failures, and user
+interrupts stop the run. `raw/execution.json` records `cleanup_confirmed`,
+`cleanup_errors`, and `transport_failed`. Any failed task makes the final run
+exit nonzero; successful task data is retained, and automatic parsing/plotting
+is skipped for an incomplete comparison. Resume still retries failed tasks.
