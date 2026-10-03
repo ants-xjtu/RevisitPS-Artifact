@@ -74,10 +74,12 @@ def plot_results(run_dir):
                            source_scale=3, target_width_inches=7, status='generated-awaiting-visual-review'),
                 source_data=dict(path=str(source.resolve()), sha256=hashlib.sha256(source.read_bytes()).hexdigest()),
                 panels=fabrics, methods=list(ALGORITHMS),
-                statistics=dict(buckets=19, membership='equal-count ranks sorted by (size, source, flow_id)',
-                                normalization='same fabric, repeat and input identities; divide by BigSwitch P99',
+                statistics=dict(buckets=19, membership='historical 09cf327: size order, FCT sort and 100-way interleave within each size',
+                                fct='end - max(start, previous end); omit final physical line of each CSV',
+                                bucket_p99='clamp FCT >= 1 us; sorted values[int(n * 0.99)]',
+                                normalization='same fabric, repeat and complete input identity set; divide by BigSwitch bucket P99',
                                 repeated_runs='equal mean of per-repeat ratios; band shows min/max',
-                                boundary='Original manuscript bucket construction is unspecified; follows repository 19-bucket convention.'),
+                                boundary='Reproduces the original testbed scripts at 09cf327.'),
                 style=dict(path='plot/lib/py/plot/paper.mplstyle', sha256=hashlib.sha256((ROOT/'plot/lib/py/plot/paper.mplstyle').read_bytes()).hexdigest(),
                            modified=False, renderer='LinePointPlot; original TeX and font settings'))
     (output / 'figure_spec.yaml').write_text(yaml.safe_dump(spec, sort_keys=False))
@@ -108,6 +110,8 @@ def plot_results(run_dir):
     (output / 'caption.md').write_text(
         'Normalized 99th percentile FCT for WebSearch at 80% offered load: '
         + ('(a) lossless and (b) lossy. ' if len(fabrics) == 2 else fabrics[0] + ' fabric. ')
+        + 'Historical FCT uses end - max(start, previous end), omits the final CSV line, '
+        + 'and uses the original 100-way interleaving and discrete bucket percentile. '
         + 'Within each flow-size rank, P99 FCT is normalized '
         'to BigSwitch using the same inputs and repeat. Lines show equal-weight means '
         'of per-repeat ratios; where multiple repeats exist, bands show their range.\n')

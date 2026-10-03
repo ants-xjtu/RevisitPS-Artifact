@@ -1,14 +1,14 @@
-"""Pure parsing of the pinned fork's --trace_log CSV (CPU cycles / MHz = us).
+"""Historical testbed FCT analysis (09cf327), with timestamps in microseconds.
 
-FCT is completion minus posting for the same indexed record. Overlapping records
-are retained; subtracting the previous completion would instead measure service
-spacing. The fork records CQ completions in poll order, a source-level limitation
-for multiple QPs; no unverified per-QP reordering is inferred here.
+Analysis drops the final physical line, sorts by posting time, and subtracts
+max(posting, previous completion). Raw timestamp validation is explicitly
+separate: it retains every record for trace completeness and hardware checks.
 """
 import csv
 import json
 import math
 from pathlib import Path
+from io import StringIO
 import click
 import numpy as np
 import pandas as pd
@@ -16,7 +16,36 @@ import pandas as pd
 THRESHOLD = 60 * 1024
 
 
-def parse_fct(path, expected_sizes=None):
+def parse_fct(path, expected_sizes=None, *, raw_timestamps=False):
+    if not raw_timestamps:
+        if expected_sizes is not None:
+            raise ValueError('Trace identity validation requires raw_timestamps=True')
+        lines = Path(path).read_text().splitlines(keepends=True)
+        header = next((i for i, line in enumerate(lines)
+                       if line.startswith('size,start_time,end_time')), None)
+        if header is None:
+            raise ValueError(f'{path}: missing FCT header')
+        # Preserve the original lines[start:-1], including its last-row omission.
+        frame = pd.read_csv(StringIO(''.join(lines[header:-1])))
+        frame = frame.sort_values(by='start_time').reset_index(drop=True)
+        starts = frame['start_time'].to_numpy(dtype=float)
+        ends = frame['end_time'].to_numpy(dtype=float)
+        previous = np.concatenate(([-np.inf], ends[:-1])) if len(ends) else ends
+        values = ends - np.maximum(starts, previous)
+        counts = dict(total=len(frame), valid=0, incomplete=0,
+                      nonpositive=int(np.count_nonzero(values <= 0)),
+                      malformed=int(np.count_nonzero(~np.isfinite(values))))
+        if counts['nonpositive'] or counts['malformed']:
+            # The historical DataFrame construction also fails when a derived
+            # value is omitted; do not silently reassign sizes to remaining FCTs.
+            return [], counts
+        frame['flow_id'] = np.arange(len(frame))
+        frame['source'] = Path(path).name
+        frame['fct'] = values
+        frame = frame.rename(columns={'start_time': 'start_time_us', 'end_time': 'end_time_us'})
+        counts['valid'] = len(frame)
+        return frame.to_dict('records'), counts
+
     records, counts = [], dict(total=0, valid=0, incomplete=0, nonpositive=0, malformed=0)
     with open(path) as source:
         lines = iter(source)
@@ -52,6 +81,8 @@ def parse_fct(path, expected_sizes=None):
 
 
 def summarize(records):
+    # Historical analysis() applied this filter to the merged size/fct columns.
+    records = [r for r in records if r['size'] < 1e9 and r['fct'] < 1e9]
     result = []
     for name, subset in [('all', records), ('small', [r for r in records if r['size'] < THRESHOLD]),
                          ('large', [r for r in records if r['size'] >= THRESHOLD])]:

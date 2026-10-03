@@ -61,12 +61,21 @@ class FctPlotTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unmatched'):
             normalize(rows)
 
-    def test_size_bucket_membership_independent_of_latency(self):
-        rows = [dict(size=1000, source='same-size', flow_id=i, fct=i+1) for i in range(190)]
+    def test_historical_interleave_and_global_input_identity(self):
+        rows = [dict(size=1000, source='same-size', flow_id=i, fct=i+1) for i in range(200)]
         a = summarize_size_buckets(rows)
-        b = summarize_size_buckets([r | {'fct': 200-r['fct']} for r in reversed(rows)])
+        b = summarize_size_buckets([r | {'fct': 201-r['fct']} for r in reversed(rows)])
         self.assertEqual([r['input_identity_sha256'] for r in a], [r['input_identity_sha256'] for r in b])
-        self.assertEqual(sum(r['samples'] for r in a), 190)
+        self.assertEqual(sum(r['samples'] for r in a), 200)
+        # Original 100-way interleave: 1,101,2,102,...,5,105 in the first bucket.
+        self.assertEqual(a[0]['p99_us'], 105)
+        self.assertEqual(summarize_size_buckets(rows, buckets=1)[0]['p99_us'], 199)
+
+    def test_historical_bucket_floor_without_upper_cutoff(self):
+        rows = [dict(size=i, source='a', flow_id=i, fct=.25 if i < 100 else 1000)
+                for i in range(200)]
+        buckets = summarize_size_buckets(rows, buckets=2)
+        self.assertEqual([r['p99_us'] for r in buckets], [1, 1000])
 
     def test_parse_and_plot_original_style(self):
         if os.environ.get('FIGURE2_RENDER_TEST') != '1':

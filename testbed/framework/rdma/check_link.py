@@ -96,7 +96,8 @@ def verify_trace_support(parser, connections, helpers, folder):
                 'cmd': {'base_port': original.cmd.base_port, 'timeout': 30, 'config': {},
                         'receiver': command, 'sender': command + ' {{receiver_ip}} --trace {{trace}}'}})
             execute_connections(parser, [connection], {ip: helpers[ip] for ip in (src, dst)})
-            records, counts = parse_fct(local / (stem + '.sender.log.csv'), [4096, 8192, 16384])
+            records, counts = parse_fct(local / (stem + '.sender.log.csv'), [4096, 8192, 16384],
+                                       raw_timestamps=True)
             if counts['valid'] != 3 or any(counts[k] for k in ('incomplete', 'nonpositive', 'malformed')):
                 raise RuntimeError('Pinned fork trace smoke/format check failed: ' + str(counts))
             # Trace schedule gaps are ns; report gaps must be about 100,000 us.

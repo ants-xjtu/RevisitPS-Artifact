@@ -1,9 +1,4 @@
-"""Figure 2: 19 equal-count size ranks, P99 FCT normalized to BigSwitch.
-
-The manuscript does not specify bucket construction. Nineteen ranks follow
-simulation/parser/parse_dcn_fct.py; membership is sorted by input identity,
-never by measured FCT. Exact original paper bucket boundaries are unavailable.
-"""
+"""Historical 09cf327 size/FCT interleaving and discrete bucket percentiles."""
 from collections import defaultdict
 import hashlib
 import math
@@ -14,17 +9,32 @@ BUCKETS = 19
 
 
 def summarize_size_buckets(records, buckets=BUCKETS):
-    ordered = sorted(records, key=lambda r: (r['size'], r['source'], r['flow_id']))
+    by_size = defaultdict(list)
+    for row in records:
+        by_size[row['size']].append(max(1., row['fct']))
+    # Match parse_fct.py: sort FCTs within each size and flatten 100
+    # round-robin sub-buckets. The old >400 cutoff was commented out.
+    ordered = []
+    for size in sorted(by_size):
+        values = sorted(by_size[size])
+        width = min(100, len(values))
+        for offset in range(width):
+            ordered.extend((size, value) for value in values[offset::width])
     if len(ordered) < buckets:
         raise ValueError(f'Need at least {buckets} valid flows for Figure 2')
+    # Per-bucket identities differ under historical latency-based interleaving.
+    # Compare the complete input identity set instead of requiring identical
+    # members in each bucket.
+    identities = '\n'.join(sorted(f"{r['source']}:{r['flow_id']}:{r['size']}" for r in records))
+    input_hash = hashlib.sha256(identities.encode()).hexdigest()
     result = []
     for index in range(buckets):
         rows = ordered[index * len(ordered) // buckets:(index + 1) * len(ordered) // buckets]
-        identities = '\n'.join(f"{r['source']}:{r['flow_id']}:{r['size']}" for r in rows)
-        result.append(dict(bucket=index, size_min_bytes=rows[0]['size'],
-                           size_max_bytes=rows[-1]['size'], samples=len(rows),
-                           input_identity_sha256=hashlib.sha256(identities.encode()).hexdigest(),
-                           p99_us=float(np.percentile([r['fct'] for r in rows], 99))))
+        values = sorted(r[1] for r in rows)
+        result.append(dict(bucket=index, size_min_bytes=rows[0][0],
+                           size_max_bytes=rows[-1][0], samples=len(rows),
+                           input_identity_sha256=input_hash,
+                           p99_us=float(values[min(int(len(values) * .99), len(values)-1)])))
     return result
 
 

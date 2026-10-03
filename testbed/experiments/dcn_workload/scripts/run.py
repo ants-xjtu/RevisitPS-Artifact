@@ -52,7 +52,7 @@ def collect_and_validate(attempt, runtime, links):
         if runtime['artifact']['experiment']['traffic'] == 'trace':
             path = attempt / 'raw' / (stem + '.sender.log.csv')
             sizes = validate_trace(Path(runtime['applications']['gen_trace']['local_path']) / (stem + '.trace'))
-            _, counts = parse_fct(path, sizes)
+            _, counts = parse_fct(path, sizes, raw_timestamps=True)
             atomic_json(attempt / 'raw' / (stem + '.validation.json'), counts)
             if any(counts[key] for key in ('incomplete', 'nonpositive', 'malformed')) or counts['valid'] != len(sizes):
                 raise ValueError(f'Incomplete/invalid FCT data: {path}: {counts}')
