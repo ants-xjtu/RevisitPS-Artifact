@@ -12,7 +12,8 @@ from framework.paths import REPO_ROOT as ROOT
 from framework.remote import logged_run
 
 BINARIES = {'ring_allreduce': 'mpi_verbs_p2p_ring4', 'alltoall': 'mpi_verbs_global_alltoall',
-            'alltoallv': 'mpi_verbs_global_alltoallv'}
+            'alltoallv': 'mpi_verbs_global_alltoallv',
+            'connectivity_ring': 'mpi_verbs_ringallreduce'}
 SOURCES = ROOT / 'experiments/ai_workload/sources'
 PROBE = r'''#include <mpi.h>
 #include <infiniband/verbs.h>
@@ -60,7 +61,7 @@ def toolchain_identity(mpi):
                  'image': os.environ.get('ARTIFACT_IMAGE_ID', 'native')}
 
 
-def build(workload, mpi, targets):
+def build(workload, mpi, targets, *, allow_build=True):
     from framework.results import atomic_json, canonical_hash, digest
     compiler = mpi['compiler']
     flags = list(mpi['compile_flags'])
@@ -87,6 +88,8 @@ def build(workload, mpi, targets):
         if saved['identity'] == identity and all((cache / name).is_file() and digest(cache / name) == value for name, value in saved['files'].items()):
             return cache, saved
         raise ValueError('AI build cache checksum mismatch; remove the corrupt cache directory: ' + str(cache))
+    if not allow_build:
+        raise ValueError('No matching AI build cache; run without --skip-build')
     cache.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=key + '-', dir=cache.parent))
     try:
