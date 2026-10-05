@@ -53,13 +53,67 @@ if [[ ${1:-} == monitor ]]; then
 fi
 stage=all
 offline=false
+container_id=
+experiment=
+run_id=
 previous=
 for argument in "$@"; do
   [[ "$previous" != --stage ]] || stage=$argument
+  [[ "$previous" != --experiment ]] || experiment=$argument
+  [[ "$previous" != --run-id ]] || run_id=$argument
   [[ "$argument" != --stage=* ]] || stage=${argument#--stage=}
+  [[ "$argument" != --experiment=* ]] || experiment=${argument#--experiment=}
+  [[ "$argument" != --run-id=* ]] || run_id=${argument#--run-id=}
   [[ "$argument" != --dry-run ]] || offline=true
   previous=$argument
 done
+
+# Do not split online and offline results between an old bind mount and the new
+# volume. Leave a running legacy console untouched until it can be migrated.
+if [[ "$offline" != true ]]; then
+  container_id=$("${compose[@]}" ps -q artifact)
+  if [[ -n "$container_id" ]]; then
+    results_mount_type=$(docker inspect "$container_id" --format '{{range .Mounts}}{{if eq .Destination "/opt/artifact/testbed/results"}}{{.Type}}{{end}}{{end}}')
+    if [[ "$results_mount_type" != volume ]]; then
+      echo 'The console still uses the old results mount. After active work finishes, run ./run.sh build and remove the old console; the next hardware run creates its replacement.' >&2
+      exit 1
+    fi
+  fi
+fi
+
+# Export only this invocation's run, as the calling host user. Read the actual
+# console's mounts for online stages; offline stages use the shared results volume.
+export_results() {
+  [[ "$offline" != true && "$experiment" =~ ^(dcn_workload|ai_workload)$ &&
+     "$run_id" =~ ^[a-zA-Z0-9_-]+$ ]] || return 0
+  local source="/opt/artifact/testbed/results/$experiment" destination="$PWD/results/$experiment"
+  local reader=("${compose[@]}" run --rm --no-deps --pull never -T --entrypoint sh artifact)
+  if [[ -n "${container_id:-}" ]]; then
+    reader=(docker exec "$container_id" sh)
+  fi
+  mkdir -p "$destination" || return 1
+  # An early failure or a status query may have no run directory yet. Emit a
+  # valid empty archive then, without hiding actual transport/read errors.
+  "${reader[@]}" -c '
+    if [ -d "$1/$2" ]; then
+      exec tar -C "$1" -cf - -- "$2"
+    else
+      exec tar -cf - -T /dev/null
+    fi
+  ' sh "$source" "$run_id" |
+    tar --extract --file=- --no-same-owner --no-same-permissions --directory="$destination" || return 1
+  printf 'Results exported to %s/%s (if created)\n' "$destination" "$run_id" >&2
+}
+
+run_and_export() {
+  local result=0
+  "$@" || result=$?
+  if ! export_results; then
+    echo 'Result export failed; container results are retained. Retry with --stage status.' >&2
+    [[ "$result" != 0 ]] || result=1
+  fi
+  return "$result"
+}
 if [[ "$stage" != parse && "$stage" != plot && "$stage" != status && "$offline" != true ]]; then
   export ARTIFACT_AGENT_SOCKET=${ARTIFACT_AGENT_SOCKET:-${SSH_AUTH_SOCK:-}}
   [[ -S "$ARTIFACT_AGENT_SOCKET" ]] || { echo 'A dedicated SSH agent socket is required' >&2; exit 1; }
@@ -80,7 +134,8 @@ if [[ "$stage" == parse || "$stage" == plot || "$stage" == status || "$offline" 
   docker image inspect "${ARTIFACT_IMAGE:-revisitps-testbed:local}" >/dev/null 2>&1 || {
     echo 'Offline stages require a prebuilt image; run ./run.sh build first' >&2; exit 1;
   }
-  exec "${compose[@]}" run --rm --no-deps --pull never -T artifact "${entry[@]}" "$@"
+  run_and_export "${compose[@]}" run --rm --no-deps --pull never -T artifact "${entry[@]}" "$@"
+  exit $?
 fi
 container_id=$("${compose[@]}" ps -q artifact)
 if [[ -z "$container_id" ]]; then
@@ -89,4 +144,4 @@ if [[ -z "$container_id" ]]; then
 fi
 container_id=$("${compose[@]}" ps -q artifact)
 image_id=$(docker inspect "$container_id" --format '{{.Image}}')
-exec "${compose[@]}" exec -T -e ARTIFACT_IMAGE_ID="$image_id" artifact "${entry[@]}" "$@"
+run_and_export "${compose[@]}" exec -T -e ARTIFACT_IMAGE_ID="$image_id" artifact "${entry[@]}" "$@"

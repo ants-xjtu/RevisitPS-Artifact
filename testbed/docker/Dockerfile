@@ -18,6 +18,7 @@ RUN groupadd -g "$ARTIFACT_GID" artifact && useradd -m -u "$ARTIFACT_UID" -g "$A
     install -d -m 0700 -o artifact -g artifact /home/artifact/.ssh
 COPY --chown=artifact:artifact testbed /opt/artifact/testbed
 COPY --chown=artifact:artifact plot/lib /opt/artifact/plot/lib
+RUN install -d -o artifact -g artifact /opt/artifact/testbed/results
 ARG PROJECT_VERSION=unknown
 ARG PERFTEST_COMMIT
 ENV PROJECT_VERSION=$PROJECT_VERSION PERFTEST_COMMIT=$PERFTEST_COMMIT \
