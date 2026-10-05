@@ -147,9 +147,10 @@ class AiTests(unittest.TestCase):
                      attempt=str(attempt.relative_to(root)), files=files)}}
             with patch('subprocess.run', side_effect=AssertionError('external process')):
                 rows = parse.parse_results(root, state)
+                runner.atomic_json(root / 'status.json', state)
                 plot.plot_results(root)
             self.assertEqual(len(rows), 2)
-            self.assertTrue((root / 'figures/alltoall.png').exists())
+            self.assertTrue((root / 'figures/cct-lossless.png').exists())
             (attempt / 'raw/nic02.csv').write_text('bad')
             with self.assertRaisesRegex(ValueError, 'integrity'):
                 parse.parse_results(root, state)
