@@ -17,9 +17,11 @@ dry_run=0
 skip_build=0
 skip_sync=0
 use_rdma_cm="${USE_RDMA_CM:-0}"
-warmup=2
-iters=5
-size_bytes=64
+bench=jct
+bw_options=()
+warmup=""
+iters=""
+size_bytes=""
 timeout_seconds=30
 same_host_only=0
 jobs=1
@@ -28,6 +30,14 @@ auto_detect_gid=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --bench)
+      bench="$2"
+      shift 2
+      ;;
+    --mode|--inflight|--sig-interval|--write-chunk|--write-notify)
+      bw_options+=("$1" "$2")
+      shift 2
+      ;;
     --selected-endpoints)
       selected_endpoints="$2"
       shift 2
@@ -64,7 +74,7 @@ while [[ $# -gt 0 ]]; do
       iters="$2"
       shift 2
       ;;
-    --size-bytes)
+    --size-bytes|--sizes)
       size_bytes="$2"
       shift 2
       ;;
@@ -95,6 +105,30 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "${bench}" in
+  jct)
+    workload=alltoall
+    warmup="${warmup:-2}"
+    iters="${iters:-5}"
+    size_bytes="${size_bytes:-64}"
+    if (( ${#bw_options[@]} )); then
+      echo 'Bandwidth options require --bench bw' >&2
+      exit 1
+    fi
+    ;;
+  bw)
+    workload=p2p_bw
+    warmup="${warmup:-200}"
+    iters="${iters:-2000}"
+    size_bytes="${size_bytes:-8M,4M,2M,1M,512K,256K,128K,64K}"
+    if [[ "${use_rdma_cm}" != 0 ]]; then
+      echo '--bench bw uses verbs QPs and does not support --use-rdma-cm' >&2
+      exit 1
+    fi
+    ;;
+  *) echo '--bench must be jct or bw' >&2; exit 1 ;;
+esac
+
 [[ -n "${selected_endpoints}" ]]
 [[ -f "${selected_endpoints}" ]]
 [[ -n "${outdir}" ]]
@@ -121,11 +155,11 @@ if [[ ${dry_run} -eq 0 ]]; then
   mkdir -p "${ARTIFACT_LOCK_DIR:-${testbed_root}/runtime/locks}"
   exec 9>"${ARTIFACT_LOCK_DIR:-${testbed_root}/runtime/locks}/testbed.lock"
   flock -n 9 || { echo 'Testbed is already in use' >&2; exit 1; }
-  binary_path="$(python3 "${helper}" prepare alltoall "${selected_endpoints}" "${skip_build}" "${skip_sync}" "${binary_path}")"
+  binary_path="$(python3 "${helper}" prepare "${workload}" "${selected_endpoints}" "${skip_build}" "${skip_sync}" "${binary_path}")"
 fi
 
 prepare_mixed_binary=0
-if [[ ${dry_run} -eq 0 && -z "${gid_index}" && ${auto_detect_gid} -eq 1 ]]; then
+if [[ "${bench}" == jct && ${dry_run} -eq 0 && -z "${gid_index}" && ${auto_detect_gid} -eq 1 ]]; then
   declare -A gid_seen=()
   for ep in "${endpoints[@]}"; do
     gid_val="$(detect_gid_index_for_endpoint_v2 "${ep}" || true)"
@@ -165,17 +199,9 @@ run_pair() {
   log_name="pair_$(sanitize "${src_host}:${src_dev}")_to_$(sanitize "${dst_host}:${dst_dev}").log"
   local log_path="${outdir}/${log_name}"
 
-  if [[ ${dry_run} -eq 1 ]]; then
-    printf 'dry-run: %s:%s -> %s:%s\n' "${src_host}" "${src_dev}" "${dst_host}" "${dst_dev}" > "${log_path}"
-    printf '%s,%s,%s,%s,DRY_RUN,0,%s\n' \
-      "${src_host}" "${src_dev}" "${dst_host}" "${dst_dev}" "${log_path}" > "${csv_out}"
-    : > "${same_host_out}"
-    return 0
-  fi
-
   local src_gid="${gid_index}"
   local dst_gid="${gid_index}"
-  if [[ -z "${gid_index}" && ${auto_detect_gid} -eq 1 ]]; then
+  if [[ ${dry_run} -eq 0 && -z "${gid_index}" && ${auto_detect_gid} -eq 1 ]]; then
     src_gid="$(detect_gid_index_for_endpoint_v2 "${src_ep}")" || {
       printf '%s,%s,%s,%s,FAIL,98,%s\n' \
         "${src_host}" "${src_dev}" "${dst_host}" "${dst_dev}" "${log_path}" > "${csv_out}"
@@ -192,50 +218,61 @@ run_pair() {
     }
   fi
 
-  local -a cmd=()
-  if [[ -n "${src_gid}" && -n "${dst_gid}" && "${src_gid}" != "${dst_gid}" ]]; then
-    local host_spec map_by dev_map gid_map cross_bin
-    if [[ "${src_host}" == "${dst_host}" ]]; then
-      host_spec="${src_host}:2"
-      map_by="ppr:2:node"
-      dev_map="${src_host}:${src_dev},${dst_dev}"
-      gid_map="${src_host}:${src_dev}=${src_gid},${dst_dev}=${dst_gid}"
-    else
-      host_spec="${src_host},${dst_host}"
-      map_by="ppr:1:node"
-      dev_map="${src_host}:${src_dev}|${dst_host}:${dst_dev}"
-      gid_map="${src_host}:${src_dev}=${src_gid}|${dst_host}:${dst_dev}=${dst_gid}"
-    fi
-    cross_bin="${mixed_binary_path:-${binary_path}}"
-    cmd=(
-      run_mpi "${timeout_seconds}" --host "${host_spec}" -np 2 --map-by "${map_by}"
-      -x "USE_RDMA_CM=${use_rdma_cm}"
-      -x "IB_DEV_MAP_BY_HOST=${dev_map}"
-      -x "GID_INDEX_BY_HOST_DEV=${gid_map}"
-      "${cross_bin}" --bench jct --sizes "${size_bytes}" --warmup "${warmup}" --iters "${iters}" --groupsize 2
-    )
+  local host_spec map_by dev_map gid_map pair_binary
+  if [[ "${src_host}" == "${dst_host}" ]]; then
+    host_spec="${src_host}:2"
+    map_by="ppr:2:node"
+    dev_map="${src_host}:${src_dev},${dst_dev}"
+    gid_map="${src_host}:${src_dev}=${src_gid},${dst_dev}=${dst_gid}"
   else
-    local host_spec map_by dev_map pair_gid_index
-    pair_gid_index="${src_gid}"
-    if [[ "${src_host}" == "${dst_host}" ]]; then
-      host_spec="${src_host}:2"
-      map_by="ppr:2:node"
-      dev_map="${src_host}:${src_dev},${dst_dev}"
+    host_spec="${src_host},${dst_host}"
+    map_by="ppr:1:node"
+    dev_map="${src_host}:${src_dev}|${dst_host}:${dst_dev}"
+    gid_map="${src_host}:${src_dev}=${src_gid}|${dst_host}:${dst_dev}=${dst_gid}"
+  fi
+  pair_binary="${binary_path}"
+  if [[ -z "${pair_binary}" ]]; then
+    if [[ "${bench}" == bw ]]; then
+      pair_binary=mpi_verbs_p2p_bw
     else
-      host_spec="${src_host},${dst_host}"
-      map_by="ppr:1:node"
-      dev_map="${src_host}:${src_dev}|${dst_host}:${dst_dev}"
+      pair_binary=mpi_verbs_global_alltoall
     fi
+  fi
+  local -a cmd=(run_mpi "${timeout_seconds}" --host "${host_spec}" -np 2
+                --map-by "${map_by}")
+  if [[ "${bench}" == bw ]]; then
+    cmd+=(-x "IB_DEV_MAP_BY_HOST=" -x "IB_DEV_MAP=${src_dev},${dst_dev}")
+  else
+    cmd+=(-x "IB_DEV_MAP_BY_HOST=${dev_map}")
+  fi
+  if [[ "${bench}" == jct ]]; then
+    cmd+=(-x "USE_RDMA_CM=${use_rdma_cm}")
+  fi
+  if [[ -n "${src_gid}" && -n "${dst_gid}" && "${src_gid}" != "${dst_gid}" ]]; then
+    cmd+=(-x "GID_INDEX_BY_HOST_DEV=${gid_map}")
+    if [[ "${bench}" == jct ]]; then
+      pair_binary="${mixed_binary_path:-${binary_path}}"
+    fi
+  elif [[ -n "${src_gid}" ]]; then
+    cmd+=(-x "GID_INDEX=${src_gid}")
+  fi
+  cmd+=("${pair_binary}" --bench "${bench}" --sizes "${size_bytes}"
+        --warmup "${warmup}" --iters "${iters}")
+  if [[ "${bench}" == bw ]]; then
+    cmd+=("${bw_options[@]}")
+  else
+    cmd+=(--groupsize 2)
+  fi
 
-    cmd=(
-      run_mpi "${timeout_seconds}" --host "${host_spec}" -np 2 --map-by "${map_by}"
-      -x "USE_RDMA_CM=${use_rdma_cm}"
-      -x "IB_DEV_MAP_BY_HOST=${dev_map}"
-    )
-    if [[ -n "${pair_gid_index}" ]]; then
-      cmd+=(-x "GID_INDEX=${pair_gid_index}")
-    fi
-    cmd+=("${binary_path}" --bench jct --sizes "${size_bytes}" --warmup "${warmup}" --iters "${iters}" --groupsize 2)
+  if [[ ${dry_run} -eq 1 ]]; then
+    printf 'dry-run: %s:%s -> %s:%s\n' "${src_host}" "${src_dev}" "${dst_host}" "${dst_dev}" > "${log_path}"
+    printf 'command: ' >> "${log_path}"
+    printf '%q ' "${cmd[@]}" >> "${log_path}"
+    printf '\n' >> "${log_path}"
+    printf '%s,%s,%s,%s,DRY_RUN,0,%s\n' \
+      "${src_host}" "${src_dev}" "${dst_host}" "${dst_dev}" "${log_path}" > "${csv_out}"
+    : > "${same_host_out}"
+    return 0
   fi
 
   local rc

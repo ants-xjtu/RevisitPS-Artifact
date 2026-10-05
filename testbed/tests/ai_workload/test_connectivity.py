@@ -1,4 +1,8 @@
 import csv
+import json
+import os
+import shlex
+import sys
 from pathlib import Path
 import subprocess
 import tempfile
@@ -61,3 +65,54 @@ class ConnectivityTests(unittest.TestCase):
                 build.assert_called_once_with('connectivity_ring', config['mpi'], {'target': 'probe'}, allow_build=False)
                 self.assertEqual(set(targets.call_args.args[1]), {'dc20', 'dc21'})
                 distribute.assert_called_once()
+
+    def test_bandwidth_dry_run_uses_native_defaults(self):
+        script = support.ROOT / 'experiments/ai_workload/scripts/check_pair_connectivity.sh'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'endpoints').write_text('dc20:mlx5_0\ndc20:mlx5_2\n')
+            subprocess.run([str(script), '--selected-endpoints', 'endpoints', '--outdir', 'out',
+                            '--bench', 'bw', '--dry-run'], cwd=root, check=True, capture_output=True)
+            log = next((root / 'out').glob('pair_*.log')).read_text()
+            command = shlex.split(log.split('command: ', 1)[1])
+            self.assertIn('mpi_verbs_p2p_bw', command)
+            self.assertEqual(command[command.index('--iters') + 1], '2000')
+            self.assertNotIn('--groupsize', command)
+            self.assertIn('IB_DEV_MAP=mlx5_0,mlx5_2', command)
+            self.assertIn('IB_DEV_MAP_BY_HOST=', command)
+
+    def test_bandwidth_launch_with_same_and_mixed_gid(self):
+        script = support.ROOT / 'experiments/ai_workload/scripts/check_pair_connectivity.sh'
+        for gids in (('3', '3'), ('3', '4')):
+            with self.subTest(gids=gids), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'endpoints').write_text('dc20:mlx5_0\ndc21:mlx5_0\n')
+                # Replace only the remote/build adapter process; exercise the real shell control flow.
+                fake = root / 'python3'
+                fake.write_text('#!' + sys.executable + '\n' +
+                    'import json, os, sys\n'
+                    'action = sys.argv[2]\n'
+                    'with open(os.environ["CALLS"], "a") as f: f.write(json.dumps(sys.argv[2:]) + "\\n")\n'
+                    'if action == "prepare": print("/remote/mpi_verbs_p2p_bw")\n'
+                    'elif action == "gid": print(os.environ["SRC_GID"] if sys.argv[3].startswith("dc20:") else os.environ["DST_GID"])\n'
+                    'elif action == "launch": print("send,1048576,64,16,1048576,imm,95.000,95.000,95.000,95.000")\n')
+                fake.chmod(0o755)
+                env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
+                           CALLS=str(root / 'calls'), SRC_GID=gids[0], DST_GID=gids[1],
+                           ARTIFACT_LOCK_DIR=str(root / 'locks'))
+                subprocess.run([str(script), '--selected-endpoints', 'endpoints', '--outdir', 'out',
+                                '--bench', 'bw', '--sizes', '1M', '--mode', 'send',
+                                '--inflight', '32', '--iters', '10'], cwd=root, env=env,
+                               check=True, capture_output=True, text=True)
+                calls = [json.loads(line) for line in (root / 'calls').read_text().splitlines()]
+                self.assertEqual([call[1] for call in calls if call[0] == 'prepare'], ['p2p_bw'])
+                command = next(call for call in calls if call[0] == 'launch')
+                self.assertIn('/remote/mpi_verbs_p2p_bw', command)
+                self.assertNotIn('--groupsize', command)
+                self.assertEqual(command[command.index('--bench') + 1], 'bw')
+                self.assertEqual(command[command.index('--inflight') + 1], '32')
+                if gids[0] != gids[1]:
+                    self.assertIn('GID_INDEX_BY_HOST_DEV=dc20:mlx5_0=3|dc21:mlx5_0=4', command)
+                else:
+                    self.assertIn('GID_INDEX=3', command)
+                self.assertIn('95.000', next((root / 'out').glob('pair_*.log')).read_text())

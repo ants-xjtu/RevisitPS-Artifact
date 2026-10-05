@@ -13,7 +13,8 @@ from framework.remote import logged_run
 
 BINARIES = {'ring_allreduce': 'mpi_verbs_p2p_ring4', 'alltoall': 'mpi_verbs_global_alltoall',
             'alltoallv': 'mpi_verbs_global_alltoallv',
-            'connectivity_ring': 'mpi_verbs_ringallreduce'}
+            'connectivity_ring': 'mpi_verbs_ringallreduce',
+            'p2p_bw': 'mpi_verbs_p2p_bw'}
 SOURCES = ROOT / 'experiments/ai_workload/sources'
 PROBE = r'''#include <mpi.h>
 #include <infiniband/verbs.h>
