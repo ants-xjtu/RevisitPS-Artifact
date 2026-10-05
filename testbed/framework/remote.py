@@ -2,6 +2,7 @@
 import hashlib
 import contextlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -23,6 +24,8 @@ if os.environ.get('ARTIFACT_KNOWN_HOSTS'):
 
 _ssh_interval = 0
 _ssh_finished = None
+_ssh_targets = None
+_ssh_target_finished = {}
 
 
 class SSHConnectionError(RuntimeError):
@@ -30,24 +33,34 @@ class SSHConnectionError(RuntimeError):
 
 
 @contextlib.contextmanager
-def ssh_spacing(seconds=2):
+def ssh_spacing(seconds=2, *, targets=None):
     """Space sequential SSH/rsync requests across hosts in every hardware stage."""
-    global _ssh_interval, _ssh_finished
-    previous = _ssh_interval, _ssh_finished
+    global _ssh_interval, _ssh_finished, _ssh_targets, _ssh_target_finished
+    if any(not math.isfinite(value) or value < 0 for value in [seconds, *(targets or {}).values()]):
+        raise ValueError('SSH intervals must be finite and nonnegative')
+    previous = _ssh_interval, _ssh_finished, _ssh_targets, _ssh_target_finished
     _ssh_interval, _ssh_finished = seconds, None
+    _ssh_targets, _ssh_target_finished = targets, {}
     try:
         yield
     finally:
-        _ssh_interval, _ssh_finished = previous
+        _ssh_interval, _ssh_finished, _ssh_targets, _ssh_target_finished = previous
 
 
-def logged_run(argv, timeout=60, check=True):
+def logged_run(argv, timeout=60, check=True, *, target=None):
     global _ssh_finished
     pacing_seconds = 0
     network_request = argv[0] in ('rsync', 'scp') or (argv[0] == 'ssh' and '-G' not in argv)
-    spaced = _ssh_interval > 0 and network_request
-    if spaced and _ssh_finished is not None:
-        remaining = _ssh_interval - (time.monotonic() - _ssh_finished)
+    if _ssh_targets is not None and target is None:
+        # Explicit target arguments and scp/rsync source/destination arguments.
+        target = next((host for host in _ssh_targets for arg in argv[1:]
+                       if arg == host or arg.startswith(host + ':')), None)
+    per_target = _ssh_targets is not None and target is not None
+    interval = _ssh_targets.get(target, _ssh_interval) if per_target else _ssh_interval
+    finished = _ssh_target_finished.get(target) if per_target else _ssh_finished
+    spaced = interval > 0 and network_request
+    if spaced and finished is not None:
+        remaining = interval - (time.monotonic() - finished)
         if remaining > 0:
             pacing_seconds = remaining
             time.sleep(remaining)
@@ -62,7 +75,10 @@ def logged_run(argv, timeout=60, check=True):
         error = exc
     finally:
         if spaced:
-            _ssh_finished = time.monotonic()
+            if per_target:
+                _ssh_target_finished[target] = time.monotonic()
+            else:
+                _ssh_finished = time.monotonic()
     log = os.environ.get('ARTIFACT_COMMAND_LOG')
     if log:
         Path(log).parent.mkdir(parents=True, exist_ok=True)
@@ -364,6 +380,30 @@ exit 1'''
     def sync_remote_to_local(self, remote_path, local_path):
         Path(local_path).parent.mkdir(parents=True, exist_ok=True)
         logged_run(['scp', *SSH_OPTIONS, self.target + ':' + remote_path, str(local_path)], 300)
+
+    def upload_verified_directory(self, local_path, remote_path, prepare):
+        """Create task directories during rsync, then verify the exact payload."""
+        local_path = Path(local_path)
+        checksums = ''.join(hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.name + '\n'
+                            for path in sorted(local_path.iterdir()) if path.is_file())
+        if not checksums:
+            raise ValueError('Cannot upload an empty configuration directory')
+        setup = prepare + ' && mkdir -p ' + shlex.quote(remote_path) + ' && exec rsync "$@"'
+        logged_run(['rsync', '-azs', '--rsync-path', 'bash -c ' + shlex.quote('set -euo pipefail; ' + setup) + ' rsync',
+                    '-e', shlex.join(['ssh', *SSH_OPTIONS]), str(local_path) + '/',
+                    self.target + ':' + remote_path + '/'], 300, target=self.target)
+        self.ssh('cd ' + shlex.quote(remote_path) + ' && printf %s ' +
+                 shlex.quote(checksums) + ' | sha256sum -c -')
+
+    def collect_files(self, remote_root, paths, local_root):
+        """Retrieve selected files in one transfer, preserving relative paths."""
+        paths = list(paths)
+        if not paths or any(Path(p).is_absolute() or '..' in Path(p).parts for p in paths):
+            raise ValueError('Collection requires relative paths within the attempt')
+        Path(local_root).mkdir(parents=True, exist_ok=True)
+        logged_run(['rsync', '-azRs', '-e', shlex.join(['ssh', *SSH_OPTIONS]),
+                    *[self.target + ':' + remote_root.rstrip('/') + '/./' + p for p in paths],
+                    str(local_root) + '/'], 300, target=self.target)
 
     def sync_remote_directory_to_local(self, remote_path, local_path):
         """Merge an attempt directory; never delete another host's collected files."""

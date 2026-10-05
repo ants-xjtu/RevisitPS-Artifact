@@ -543,6 +543,8 @@ def run_ai(args):
         return
     deployment = load_deployment(args.deployment)
     selected = ai.specifications(args, deployment)
+    networks = {name: index for index, name in enumerate(dict.fromkeys(s['network_id'] for s in selected))}
+    selected.sort(key=lambda spec: networks[spec['network_id']])
     plan = [(spec, repeat) for spec in selected for repeat in range(1, args.repeat + 1)]
     if args.dry_run:
         print(json.dumps(dict(stage=args.stage, tasks=[dict(task_id=f'{s["id"]}-r{r:03d}',
@@ -552,8 +554,19 @@ def run_ai(args):
         return
     os.environ['PERFTEST_COMMIT'] = perftest_commit()
     os.environ['ARTIFACT_RUN_ID'] = args.run_id
-    with device_lock(), ssh_spacing():
-        print('SSH pacing: at least 2 seconds between remote requests (all hosts).', flush=True)
+    intervals = {}
+    for spec in selected:
+        effective = experiment_deployment(deployment, spec)
+        for remote in ai.remote_helpers(spec, effective).values():
+            interval = effective['mpi'].get('ssh_interval_seconds', 0.2)
+            intervals[remote.target] = max(intervals.get(remote.target, 0), interval)
+        _, _, _, switches, _ = validate(spec)
+        for name, switch in switches.items():
+            target = switch.get('user', effective['tofino']['user']) + '@' + switch.get('management', name)
+            interval = effective['tofino'].get('ssh_interval_seconds', 2)
+            intervals[target] = max(intervals.get(target, 0), interval)
+    with device_lock(), ssh_spacing(targets=intervals):
+        print('AI SSH pacing: per-host intervals, compute nodes 0.2s and switches 2s by default.', flush=True)
         status_path = run_dir / 'status.json'
         if status_path.exists() and not args.resume:
             raise ValueError('run-id already exists; use --resume or a new run-id')

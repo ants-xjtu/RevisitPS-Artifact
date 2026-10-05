@@ -115,4 +115,4 @@ class RemoteTofinoHelper:
                         f' && bash switches/scripts/wait_port.sh --port={int(port)}', timeout=180)
         cmd = self.render(config_cmd, cp_script_path=cp_script_path, hostname=self.switch_id,
                           topo=topo, switches=switches, hosts=hosts, port=int(port))
-        self.remote.ssh(NIX_ENV + 'cd ' + shlex.quote(self.remote_cwd) + ' && ' + cmd, timeout=300)
+        return self.remote.ssh(NIX_ENV + 'cd ' + shlex.quote(self.remote_cwd) + ' && ' + cmd, timeout=300).stdout

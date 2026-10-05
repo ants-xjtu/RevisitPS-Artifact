@@ -64,7 +64,8 @@ class AiTests(unittest.TestCase):
                   '--run-id', 'dry-test', '--repeat', '2', '--dry-run'])
         tasks = json.loads(output.getvalue())['tasks']
         self.assertEqual(len(tasks), 36)
-        self.assertEqual([task['spec']['workload'] for task in tasks[::12]], ['ring_allreduce', 'alltoall', 'alltoallv'])
+        self.assertEqual([task['spec']['workload'] for task in tasks[:6:2]], ['ring_allreduce', 'alltoall', 'alltoallv'])
+        self.assertEqual(len({task['spec']['network_id'] for task in tasks[:6]}), 1)
 
     def test_openmpi4_rankfile_option(self):
         mpi = load_deployment('deployment/deployment.yaml')['mpi']
@@ -100,7 +101,8 @@ class AiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(TimeoutError):
                 run.execute(spec, mpi, Path(directory), remotes, '/bin', '/run', 3, 1)
-            self.assertEqual(sum(remote.stop.call_count for remote in remotes.values()), 17)
+            self.assertEqual(sum(remote.stop.call_count for remote in remotes.values()), 1)
+            self.assertEqual(sum(len(remote.stop_many.call_args.args[0]) for remote in remotes.values()), 16)
             journal = [json.loads(line) for line in (Path(directory) / 'processes.jsonl').read_text().splitlines()]
             self.assertEqual(len(journal), 16)
             self.assertTrue(all(not p['process_group'] for p in journal))
@@ -121,7 +123,8 @@ class AiTests(unittest.TestCase):
             with self.assertRaises(TimeoutError):
                 run.execute(spec, mpi, Path(directory), remotes, '/bin', '/run', 3, 1)
         self.assertIn(unittest.mock.call(owned), launcher.stop.call_args_list)
-        self.assertEqual(sum(remote.stop.call_count for remote in remotes.values()), 17)
+        self.assertEqual(sum(remote.stop.call_count for remote in remotes.values()), 1)
+        self.assertEqual(sum(len(remote.stop_many.call_args.args[0]) for remote in remotes.values()), 16)
 
     def test_missing_group_csv_does_not_complete_even_when_mpi_succeeds(self):
         spec = specs('alltoall')[0]; spec['parameters']['iters'] = 2

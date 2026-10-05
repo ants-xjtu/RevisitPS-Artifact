@@ -215,16 +215,19 @@ def prepare(spec, deployment, directory, refresh=False, shared=None):
     return report, remotes, destination
 
 
-def configure_hardware(spec, deployment, attempt, report, built, run_id):
+def configure_hardware(spec, deployment, attempt, report, built, run_id, shared=None):
     from framework.runner import snapshot, prepare_runtime
     from framework.rdma.run_test import load_endpoints
     from framework.rdma.config_nic import configure
     from switches.scripts.config_sw import run_switch_config
     runtime, _, _, _ = snapshot(spec, deployment, 1, attempt)
     parser = prepare_runtime(runtime, report, attempt, run_id, spec['id'], deployment)
-    run_switch_config(parser, do_build=True, do_run=True, do_config=True, built=built)
-    hosts, _, helpers = load_endpoints(parser)
-    configure(hosts, helpers, deployment, spec['network_mode'] == 'lossless')
+    cache = shared.setdefault('hardware', {}) if shared is not None else {}
+    run_switch_config(parser, do_build=True, do_run=True, do_config=True, built=built,
+                      reuse=cache.setdefault('switches', {}))
+    hosts, _, helpers = load_endpoints(parser, discovery_cache=cache.setdefault('discovery', {}))
+    configure(hosts, helpers, deployment, spec['network_mode'] == 'lossless',
+              firmware_cache=cache.setdefault('firmware', {}))
     gids = {helpers[row['endpoint']].gid for g in spec['groups'] for row in g['ranks']}
     if None in gids or len(gids) != 1:
         raise ValueError('The current MPI programs require a common probed RoCE v2 GID index')
@@ -248,23 +251,21 @@ def execute(spec, mpi, attempt, remotes, binary_dir, remote_dir, gid, timeout):
         'echo "$$ $(awk \'{print $22}\' /proc/$$/stat)" > "$state.pid"\n' +
         'exec env ARTIFACT_PROCESS_TOKEN=' + q(token) + ' ' + q(binary) + ' "$@"\n')
     wrapper.chmod(0o755)
+    command = mpi_command(spec, mpi, remote_dir, remote_dir + '/configs/rank.sh', gid)
+    atomic_json(configs / 'command.json', command)
     rank_procs = []
     for host, remote in remotes.items():
         # Never accept leftover CSVs when local state was removed or copied.
         # The parent may already exist because the smoke test has its own child.
-        remote.ssh('test ! -e ' + q(remote_dir + '/raw') + ' && mkdir -p ' +
+        prepare = ('test ! -e ' + q(remote_dir + '/raw') + ' && mkdir -p ' +
                    ' '.join(q(remote_dir + '/' + x) for x in ('raw', 'logs', 'ranks')))
-        remote.sync_local_to_remote(configs, remote_dir + '/configs')
-        checksums = ''.join(f'{digest(p)}  {p.name}\n' for p in configs.iterdir() if p.is_file())
-        remote.ssh('cd ' + q(remote_dir + '/configs') + ' && printf %s ' + q(checksums) + ' | sha256sum -c -')
+        remote.upload_verified_directory(configs, remote_dir + '/configs', prepare)
     for rank, row in enumerate(row for group in spec['groups'] for row in group['ranks']):
         proc = dict(state=remote_dir + f'/ranks/rank-{rank}', token=token, target=remotes[row['host']].target,
                     process_group=False, log=remote_dir + '/logs/mpi.log')
         rank_procs.append((remotes[row['host']], proc))
         with Path(__import__('os').environ.get('ARTIFACT_PROCESS_JOURNAL', str(attempt / 'processes.jsonl'))).open('a') as stream:
             stream.write(json.dumps(proc) + '\n')
-    command = mpi_command(spec, mpi, remote_dir, remote_dir + '/configs/rank.sh', gid)
-    atomic_json(configs / 'command.json', command)
     launcher = remotes[mpi['launcher']]
     environment = ('export PATH=' + q(mpi['prefix'] + '/bin') + ':"$PATH"; '
                    'export LD_LIBRARY_PATH=' + q(mpi['library_path']) + '${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}; ')
@@ -272,16 +273,19 @@ def execute(spec, mpi, attempt, remotes, binary_dir, remote_dir, gid, timeout):
     processes = getattr(launcher, 'processes', [])
     started_before = len(processes) if isinstance(processes, list) else 0
     failed = False
+    collected = False
     try:
         # This launch uses the full rankfile but does not open RDMA queues.
         bind_check = command[:command.index('-x')] + ['--report-bindings', '/bin/true']
         (logs / 'binding.log').write_text(launcher.ssh(environment + shlex.join(bind_check), timeout=60).stdout)
         proc = launcher.start(environment + shlex.join(command), remote_dir + '/logs/mpi.log')
         launcher.wait(proc, timeout)
+        launcher.collect_files(remote_dir,
+                               ['raw/' + group['name'] + '.csv' for group in spec['groups']] + ['logs/mpi.log'],
+                               attempt)
+        collected = True
         for group in spec['groups']:
-            path = raw / (group['name'] + '.csv')
-            launcher.sync_remote_to_local(remote_dir + '/raw/' + path.name, path)
-            samples(path, spec['parameters']['iters'])
+            samples(raw / (group['name'] + '.csv'), spec['parameters']['iters'])
     except BaseException:
         failed = True
         # start() journals ownership before SSH. It may have launched the process
@@ -293,16 +297,20 @@ def execute(spec, mpi, attempt, remotes, binary_dir, remote_dir, gid, timeout):
         cleanup_errors = []
         if proc is not None:
             try:
-                launcher.sync_remote_to_local(proc['log'], logs / 'mpi.log')
+                if not collected:
+                    launcher.sync_remote_to_local(proc['log'], logs / 'mpi.log')
             except Exception as error:
                 cleanup_errors.append(str(error))
             try:
                 launcher.stop(proc)
             except Exception as error:
                 cleanup_errors.append(str(error))
+        cleanup_hosts = {}
         for remote, rank_proc in rank_procs:
+            cleanup_hosts.setdefault(remote.target, (remote, []))[1].append(rank_proc)
+        for remote, processes in cleanup_hosts.values():
             try:
-                remote.stop(rank_proc)
+                remote.stop_many(processes)
             except Exception as error:
                 cleanup_errors.append(str(error))
         if cleanup_errors:
@@ -339,7 +347,7 @@ def run_task(spec, deployment, task, run_dir, state, built, stage='run', refresh
                       ARTIFACT_PROCESS_JOURNAL=str(attempt / 'processes.jsonl'),
                       ARTIFACT_SWITCH_LOG=str(run_dir / 'checks/switches'))
     report, remotes, binary_dir = prepare(spec, deployment, attempt, refresh, shared)
-    gid = configure_hardware(spec, deployment, attempt, report, built, run_dir.name)
+    gid = configure_hardware(spec, deployment, attempt, report, built, run_dir.name, shared)
     remote_dir = deployment['mpi']['remote_root'].rstrip('/') + '/' + run_dir.name + '/' + task['task_id'] + '/' + attempt.name
     short = copy.deepcopy(spec)
     short['parameters'].update(warmup=1, iters=deployment['mpi']['smoke_iters'],

@@ -49,7 +49,7 @@ if alive:
             helper.ssh('sudo -n python3 -c ' + shlex.quote(script) + ' ' + shlex.join(sorted(tokens)))
 
 
-def load_endpoints(parser, extra_ips=()):
+def load_endpoints(parser, extra_ips=(), discovery_cache=None):
     conf = parser.get()
     hosts = HostConfParser(conf.config.hosts)
     hosts.load_conf_file()
@@ -57,7 +57,10 @@ def load_endpoints(parser, extra_ips=()):
     connections.load_conf_file()
     helpers = generate_ip_helper_map(set(connections.hosts) | set(extra_ips), hosts.hosts, conf.applications.remote_rdma.user)
     from framework.rdma.nic_batch import discover
-    discover(hosts, helpers)
+    if discovery_cache is None:
+        discover(hosts, helpers)
+    else:
+        discover(hosts, helpers, cache=discovery_cache)
     Path(conf.config.hosts + '.discovered.json').write_text(json.dumps(hosts.hosts, indent=2))
     return hosts, connections.connections, helpers
 

@@ -175,7 +175,7 @@ def configure_group(group, queries, changes_for, apply, label='NIC'):
     changes = changes_for(current)
     if not changes:
         progress(f'{label} ready: {remote.target}, all {len(group)} ports match; no writes')
-        return
+        return current
     if not apply:
         raise RuntimeError(f'{remote.target}: {label} configuration mismatch; {len(changes)} updates required')
     progress(f'{label} update: {remote.target}, applying {len(changes)} changed settings groups')
@@ -185,13 +185,26 @@ def configure_group(group, queries, changes_for, apply, label='NIC'):
     if remaining:
         raise RuntimeError(f'{remote.target}: {label} readback mismatch after update: ' + '; '.join(remaining))
     progress(f'{label} ready: {remote.target}, all {len(group)} ports verified after update')
+    return actual
 
 
-def configure(hosts, helpers, deployment, lossless, apply=True):
+def configure(hosts, helpers, deployment, lossless, apply=True, firmware_cache=None):
     rdma = deployment['rdma']
     for group in host_groups(helpers):
-        configure_group(group, nic_queries(hosts, group, rdma),
-                        lambda snapshot: nic_changes(hosts, group, rdma, lossless, snapshot), apply)
+        queries = nic_queries(hosts, group, rdma)
+        # LOG_TX_PSN_WINDOW is a boot-time firmware setting. Other NIC settings
+        # (link, QoS, DCQCN and runtime registers) are always read back live.
+        key = tuple(sorted((ip, h.target, h.bus_info, getattr(h, 'boot_id', ''),
+                            rdma.get('psn_window_packets')) for ip, h in group.items()))
+        can_cache = firmware_cache is not None and all(getattr(h, 'boot_id', '') for h in group.values())
+        saved = firmware_cache.get(key, {}) if can_cache else {}
+        for name in saved:
+            queries.pop(name, None)
+        actual = configure_group(group, queries,
+            lambda snapshot: nic_changes(hosts, group, rdma, lossless, {**saved, **snapshot}), apply)
+        if can_cache:
+            firmware_cache[key] = {name: value for name, value in {**saved, **actual}.items()
+                                   if name.endswith('/psn')}
 
 
 def main(argv=None):

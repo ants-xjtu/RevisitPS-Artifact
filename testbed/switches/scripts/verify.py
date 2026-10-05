@@ -1,5 +1,7 @@
 """Executed inside SDE after configuration: bind program and read physical ports."""
 import argparse
+import hashlib
+import json
 import time
 from framework.conf_parser.yaml_parser import SwitchConfParser
 from switches.bfrt.bfrt_grpc_client import BfrtGrpcClient, gc
@@ -15,6 +17,7 @@ def verify(args):
     ports = PortController(client.target, gc, client.bfrt_info)
     table = client.bfrt_info.table_get('$PORT')
     expected = bool(switch.get('PFC_ENABLE', False))
+    readback = {'program': switch['program']['name'], 'ports': [], 'tables': {}}
     for fp, lane, *_ in conf.parse_ports(args.hostname):
         ok, dev_port = ports.get_dev_port(fp, lane)
         if not ok:
@@ -31,6 +34,8 @@ def verify(args):
         for name in ('$TX_PFC_EN_MAP', '$RX_PFC_EN_MAP'):
             if values.get(name) != (255 if expected else 0):
                 raise RuntimeError(f'Port {fp}/{lane}: {name} readback mismatch')
+        readback['ports'].append([dev_port, {name: values.get(name) for name in (
+            '$PORT_ENABLE', '$PORT_UP', '$SPEED', '$FEC', '$TX_PFC_EN_MAP', '$RX_PFC_EN_MAP')}])
     program = switch['program']['name']
     table_names = ['pipe.SwitchIngress.forward'] if program.startswith('basic_forward') else [
         'pipe.SwitchIngress.get_nexthop_id', 'pipe.SwitchIngress.nexthop',
@@ -40,7 +45,12 @@ def verify(args):
         entries = list(table.entry_get(client.target, [], {'from_hw': True}))
         if not entries:
             raise RuntimeError(f'Forwarding table {name} is empty')
-        print(name, [(data.to_dict(), key.to_dict()) for data, key in entries])
+        rows = [(data.to_dict(), key.to_dict()) for data, key in entries]
+        readback['tables'][name] = sorted(json.dumps(row, sort_keys=True) for row in rows)
+        print(name, rows)
+    readback['ports'].sort(key=lambda row: row[0])
+    checksum = hashlib.sha256(json.dumps(readback, sort_keys=True).encode()).hexdigest()
+    print('ARTIFACT_SWITCH_STATE=' + checksum)
     print('Verified program binding, forwarding entries, physical ports and PFC readback')
 
 

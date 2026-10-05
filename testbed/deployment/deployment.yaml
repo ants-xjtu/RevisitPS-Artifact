@@ -23,6 +23,8 @@ perftest:
   build_packages: [build-essential, autoconf, automake, libtool, pkg-config]
   # libibverbs/librdmacm development headers must match the installed RDMA stack.
 tofino:
+  # AI orchestration retains a conservative per-switch request interval.
+  ssh_interval_seconds: 2
   user: jndu
   sde_command: sde-env-9.9.1 --platform=accton_wedge100bf_32x --python-modules=pyyaml,jinja2
   install_command: null
@@ -43,6 +45,8 @@ experiment_overrides: {}
 
 # Build inside the controller container; MPI execution stays on this host.
 mpi:
+  # AI compute-host requests are paced independently from switch control.
+  ssh_interval_seconds: 0.2
   launcher: dc20
   prefix: /usr/mpi/gcc/openmpi-4.1.7rc1
   compiler: /usr/mpi/gcc/openmpi-4.1.7rc1/bin/mpicxx

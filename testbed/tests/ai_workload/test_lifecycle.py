@@ -20,6 +20,8 @@ class LifecycleTests(unittest.TestCase):
         self.stack.enter_context(patch.dict(os.environ, {'ARTIFACT_LOCK_DIR': str(self.folder / 'locks')}))
         self.deployment = load_deployment('deployment/deployment.yaml')
         self.spec = run.specifications(SimpleNamespace(workload='alltoall', network_mode='lossless'), self.deployment)[0]
+        validated = runner.validate(self.spec)
+        self.stack.enter_context(patch.object(runner, 'validate', return_value=validated))
         self.stack.enter_context(patch.object(runner, 'ROOT', self.folder))
         self.stack.enter_context(patch('framework.config.load_deployment', return_value=self.deployment))
         self.stack.enter_context(patch.object(run, 'specifications', return_value=[self.spec]))
