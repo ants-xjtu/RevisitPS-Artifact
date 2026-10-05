@@ -38,7 +38,7 @@ class ExperimentConfigTests(unittest.TestCase):
             config, _, _, switches, links = validate(spec)
             traces.append(config['applications']['gen_trace'])
             self.assertEqual(links, expected_links)
-            self.assertEqual(config['applications']['remote_rdma']['test']['cmd']['config']['qp'], 1)
+            self.assertEqual(config['applications']['remote_rdma']['test']['cmd']['config']['qp'], 4)
             for role in ('sender', 'receiver'):
                 self.assertIn('-m 1024', config['applications']['remote_rdma']['test']['cmd'][role])
                 self.assertIn('--qp-timeout=' + ('10' if spec['group']=='lossless' else '6'),
