@@ -44,9 +44,9 @@ experiment_overrides: {}
 # Build inside the controller container; MPI execution stays on this host.
 mpi:
   launcher: dc20
-  prefix: /usr
-  compiler: /usr/bin/mpicxx
-  library_path: /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/openmpi/lib
+  prefix: /usr/mpi/gcc/openmpi-4.1.7rc1
+  compiler: /usr/mpi/gcc/openmpi-4.1.7rc1/bin/mpicxx
+  library_path: /usr/mpi/gcc/openmpi-4.1.7rc1/lib:/usr/lib/x86_64-linux-gnu
   compile_flags: [-O2, '-std=c++11']
   timeout_seconds: 1800
   smoke_iters: 2

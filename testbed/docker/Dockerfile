@@ -1,9 +1,15 @@
-FROM python:3.11.11-slim-bookworm
-ARG DEBIAN_SNAPSHOT=20250901T000000Z
-RUN rm -f /etc/apt/sources.list.d/debian.sources && \
-    printf 'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/%s bookworm main\n' "$DEBIAN_SNAPSHOT" > /etc/apt/sources.list && \
-    apt-get update && apt-get install -y --no-install-recommends openssh-client rsync tmux iproute2 fonts-dejavu-core ca-certificates procps build-essential openmpi-bin libopenmpi-dev libibverbs-dev librdmacm-dev pkg-config texlive-latex-extra texlive-fonts-recommended cm-super-minimal dvipng && \
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv openssh-client rsync tmux iproute2 fonts-dejavu-core ca-certificates procps build-essential libibverbs-dev librdmacm-dev libudev1 libcap2 zlib1g libnuma1 pkg-config texlive-latex-extra texlive-fonts-recommended cm-super-minimal dvipng && \
     rm -rf /var/lib/apt/lists/*
+# Exact vendor MPI exported from the deployment's launcher by export_mpi_toolchain.py.
+COPY testbed/build/mpi-toolchain/ /tmp/mpi-toolchain/
+RUN cd /tmp/mpi-toolchain && sha256sum -c SHA256SUMS > /dev/null && \
+    mkdir -p /usr/mpi/gcc && mv openmpi-4.1.7rc1 /usr/mpi/gcc/ && \
+    rm -rf /tmp/mpi-toolchain && \
+    /usr/mpi/gcc/openmpi-4.1.7rc1/bin/mpicxx --showme:version
+RUN python3 -m venv /opt/venv
+ENV PATH=/opt/venv/bin:/usr/mpi/gcc/openmpi-4.1.7rc1/bin:$PATH
 COPY testbed/docker/requirements.lock.txt /tmp/requirements.lock.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.lock.txt
 ARG ARTIFACT_UID=1000

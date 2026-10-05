@@ -30,3 +30,9 @@
 **/results/
 **/build/
 **/runtime/
+
+# Include only the exported MPI toolchain from the otherwise ignored build cache.
+!testbed/build/
+testbed/build/**
+!testbed/build/mpi-toolchain/
+!testbed/build/mpi-toolchain/**

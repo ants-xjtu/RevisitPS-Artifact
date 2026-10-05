@@ -32,7 +32,7 @@ def normalize(command, binary):
         if flag == '-x':
             if value != 'LD_LIBRARY_PATH':
                 exports.append(value)
-        elif flag not in ('--prefix', '--wdir', '--map-by'):
+        elif flag not in ('--prefix', '--wdir', '--map-by', '--rankfile'):
             options[flag] = value
     args = command[index + 1:]; benchmark = {}; i = 0
     while i < len(args):
@@ -65,6 +65,12 @@ class AiTests(unittest.TestCase):
         tasks = json.loads(output.getvalue())['tasks']
         self.assertEqual(len(tasks), 36)
         self.assertEqual([task['spec']['workload'] for task in tasks[::12]], ['ring_allreduce', 'alltoall', 'alltoallv'])
+
+    def test_openmpi4_rankfile_option(self):
+        mpi = load_deployment('deployment/deployment.yaml')['mpi']
+        command = run.mpi_command(specs('alltoall')[0], mpi, '/run', '/binary', 4)
+        self.assertEqual(command[command.index('--rankfile') + 1], '/run/configs/merged.rankfile')
+        self.assertNotIn('--map-by', command)
 
     def test_launcher_must_own_each_group_csv(self):
         deployment = load_deployment('deployment/deployment.yaml')
@@ -147,6 +153,10 @@ class AiTests(unittest.TestCase):
             (attempt / 'raw/nic02.csv').write_text('bad')
             with self.assertRaisesRegex(ValueError, 'integrity'):
                 parse.parse_results(root, state)
+
+    def test_mpi_version_preserves_release_candidate(self):
+        self.assertEqual(build.mpi_version('mpirun (Open MPI) 4.1.7rc1'), '4.1.7rc1')
+        self.assertNotEqual(build.mpi_version('Open MPI 4.1.7rc1'), build.mpi_version('Open MPI 4.1.7'))
 
     def test_build_identity_rejects_incompatible_mpi_before_compilation(self):
         mpi = load_deployment('deployment/deployment.yaml')['mpi']

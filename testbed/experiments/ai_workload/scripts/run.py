@@ -89,7 +89,7 @@ def mpi_command(spec, mpi, remote_dir, binary, gid_index):
     params = spec['parameters']; workload = spec['workload']
     command = [str(Path(mpi['prefix']) / 'bin/mpirun'), '--prefix', mpi['prefix'],
                '--host', ','.join(f'{host}:{count}' for host, count in counts.items()),
-               '-np', str(len(ranks)), '--map-by', 'rankfile:file=' + remote_dir + '/configs/merged.rankfile',
+               '-np', str(len(ranks)), '--rankfile', remote_dir + '/configs/merged.rankfile',
                '--bind-to', spec['bind_to'], '--wdir', remote_dir,
                '-x', 'LD_LIBRARY_PATH', '-x', 'IB_DEV_MAP=' + ','.join(row['device'] for row in ranks),
                '-x', 'GID_INDEX=' + str(gid_index)]

@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
 
 
 def mpi_version(output):
-    match = re.search(r'Open MPI[^\n]*?\b(\d+\.\d+\.\d+)', output)
+    match = re.search(r'Open MPI[^\n]*?\b(\d+\.\d+\.\d+(?:(?:rc|a|b)\d+)?)', output)
     if not match:
         raise ValueError('An explicit Open MPI toolchain is required: ' + output[:200])
     return match[1]
