@@ -276,29 +276,38 @@ done
 tmpdir="$(mktemp -d "${outdir}/pair_tmp.XXXXXX")"
 trap 'rm -rf "${tmpdir}"' EXIT
 
+worker_pids=()
 for (( idx = 0; idx < ${#pair_src[@]}; idx++ )); do
   csv_tmp="${tmpdir}/result_${idx}.csv"
   fail_tmp="${tmpdir}/same_host_${idx}.txt"
   run_pair "${pair_src[$idx]}" "${pair_dst[$idx]}" "${csv_tmp}" "${fail_tmp}" &
+  worker_pids+=("$!")
   while (( $(jobs -rp | wc -l) >= jobs )); do
-    wait -n
+    wait -n || true
   done
 done
-wait
+worker_failed=0
+for pid in "${worker_pids[@]}"; do
+  wait "$pid" || worker_failed=1
+done
 
 printf 'src_host,src_dev,dst_host,dst_dev,status,rc,log_path\n' > "${csv_file}"
 : > "${same_host_failures}"
 total="${#pair_src[@]}"
 fail=0
+missing=0
 for (( idx = 0; idx < ${#pair_src[@]}; idx++ )); do
   csv_tmp="${tmpdir}/result_${idx}.csv"
   fail_tmp="${tmpdir}/same_host_${idx}.txt"
-  if [[ -f "${csv_tmp}" ]]; then
+  if [[ -s "${csv_tmp}" && -f "${csv_tmp}" ]]; then
     line="$(cat "${csv_tmp}")"
     printf '%s\n' "${line}" >> "${csv_file}"
     if [[ "$(awk -F',' '{print $5}' <<< "${line}")" == "FAIL" ]]; then
       fail=$((fail + 1))
     fi
+  else
+    missing=$((missing + 1))
+    echo "Missing result for ${pair_src[$idx]} -> ${pair_dst[$idx]}" >&2
   fi
   if [[ -s "${fail_tmp}" ]]; then
     cat "${fail_tmp}" >> "${same_host_failures}"
@@ -311,4 +320,7 @@ fi
 
 log_info "Wrote ${csv_file}"
 log_info "Wrote ${same_host_failures}"
-log_info "pairs=${total} fail=${fail}"
+log_info "pairs=${total} fail=${fail} missing=${missing}"
+if (( fail > 0 || missing > 0 || worker_failed > 0 )); then
+  exit 1
+fi

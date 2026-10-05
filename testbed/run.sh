@@ -8,6 +8,26 @@ if [[ ! -f "$ARTIFACT_DEPLOYMENT_PATH" ]]; then
   export ARTIFACT_DEPLOYMENT_PATH=$PWD/deployment/deployment.yaml
 fi
 compose=(docker compose -f "$PWD/docker/compose.yaml")
+
+check_mpi_toolchain() {
+  # Custom Dockerfiles may use a different toolchain preparation process.
+  [[ "${ARTIFACT_DOCKERFILE:-testbed/docker/Dockerfile}" == testbed/docker/Dockerfile ]] || return 0
+  if [[ ! -f build/mpi-toolchain/openmpi-4.1.7rc1/bin/mpicxx ||
+        ! -s build/mpi-toolchain/SHA256SUMS ]]; then
+    echo 'The default image requires an exported MPI toolchain. From the testbed directory, run:' >&2
+    printf '  PYTHONPATH=%q python3 docker/export_mpi_toolchain.py --deployment %q\n' "$PWD" "$ARTIFACT_DEPLOYMENT_PATH" >&2
+    echo 'Then retry ./run.sh build. The export requires Python dependencies from docker/requirements.lock.txt and SSH access to the configured launcher.' >&2
+    return 1
+  fi
+  (cd build/mpi-toolchain && sha256sum --quiet -c SHA256SUMS) || {
+    echo 'MPI toolchain checksum verification failed; inspect build/mpi-toolchain before rebuilding.' >&2
+    return 1
+  }
+}
+# Fail before submodule preparation when the explicit build lacks its input.
+if [[ ${1:-} == build ]]; then
+  check_mpi_toolchain
+fi
 # submodule update follows the parent's gitlink, never a branch tip.
 git -C "$repo" submodule update --init -- testbed/experiments/dcn_workload/sources/perftest
 expected=$(git -C "$repo" ls-files -s testbed/experiments/dcn_workload/sources/perftest | awk '$1==160000 {print $2}')
@@ -64,6 +84,7 @@ if [[ "$stage" == parse || "$stage" == plot || "$stage" == status || "$offline" 
 fi
 container_id=$("${compose[@]}" ps -q artifact)
 if [[ -z "$container_id" ]]; then
+  check_mpi_toolchain
   "${compose[@]}" up -d --build
 fi
 container_id=$("${compose[@]}" ps -q artifact)
